@@ -1,9 +1,29 @@
-# Invoked as: cmake -P embed_lba2_cfg.cmake -DINPUT=<path> -DOUTPUT=<path>
+# Invoked as: cmake -P embed_lba2_cfg.cmake -DINPUT=<path> -DOUTPUT=<path> [-DLANGUAGE=<name>] [-DMODERN_PAD=ON]
 # Emits C++ source with embedded LBA2.CFG bytes (no Python required).
 if(NOT DEFINED INPUT OR NOT DEFINED OUTPUT)
     message(FATAL_ERROR "embed_lba2_cfg.cmake requires -DINPUT= and -DOUTPUT=")
 endif()
 
+# LANGUAGE, when given, replaces the seed's text language (not LanguageCD), for a
+# build whose players expect another language on a fresh install.
+# MODERN_PAD, when true, frees the D-pad's up and down for the camera zoom, as
+# the compiled defaults of such a build do (INPUT_BINDINGS.CPP).
+set(_edit FALSE)
+if((DEFINED LANGUAGE AND NOT LANGUAGE STREQUAL "") OR MODERN_PAD)
+    set(_edit TRUE)
+    file(READ "${INPUT}" _text)
+endif()
+if(DEFINED LANGUAGE AND NOT LANGUAGE STREQUAL "")
+    string(REGEX REPLACE "\nLanguage: [^\r\n]*" "\nLanguage: ${LANGUAGE}" _text "${_text}")
+endif()
+if(MODERN_PAD)
+    string(REGEX REPLACE "\nGamepad33: [^\r\n]*" "\nGamepad33: 0" _text "${_text}")
+    string(REGEX REPLACE "\nGamepad34: [^\r\n]*" "\nGamepad34: 0" _text "${_text}")
+endif()
+if(_edit)
+    set(INPUT "${OUTPUT}.cfg")
+    file(WRITE "${INPUT}" "${_text}")
+endif()
 file(READ "${INPUT}" _hex HEX)
 string(LENGTH "${_hex}" _hexlen)
 math(EXPR _nbytes "${_hexlen} / 2")

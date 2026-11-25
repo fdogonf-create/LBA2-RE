@@ -30,10 +30,16 @@ ignores it, because a recording does not carry the stick's raw axes.
 | Key | Console | Default | Description |
 |-----|---------|---------|-------------|
 | `GamepadAnalogMove` | `pad_analog_move` | 0 (1 on Switch) | left stick walks Twinsen the way it points; 0 = original tank controls |
+| `GamepadDpadZoom` | `pad_dpad_zoom` | 0 (1 on Switch) | D-pad up / down zoom the Auto camera in / out; the distance holds until changed |
+| `GamepadBehaviourCycle` | `pad_cycle_behaviour` | 0 (1 on Switch) | a tap of ZL steps normal, sporty, aggressive, discreet and round again |
+| `GamepadCameraCurve` | `cam_stick_curve` | 0 (1 on Switch) | right stick ramps squared, so a small tilt turns the camera gently |
 
 The `LBA2_MODERN_GAMEPAD` build option, on in the Switch preset, makes a cfg
-without the key start with analog movement, the Auto camera (`FollowCamera`) and right-stick sensitivity 8.
-A cfg that already holds either key keeps its value.
+without these keys start with all four on, the Auto camera (`FollowCamera`),
+right-stick sensitivity 6 and orbit smoothing 4. It also leaves ZL and the
+D-pad's up and down unbound in the compiled and seeded pad layout, since they
+take the behaviour cycle and the zoom; the jetpack and the protection spell stay
+in the inventory. A cfg that already holds a key keeps its value.
 
 ## Manual camera (Auto camera mode)
 
@@ -114,13 +120,13 @@ on their own behalf, so neither needs a device plugged in
 | Key | Default | Description |
 |-----|---------|-------------|
 | `GamepadCameraAnalog` | 1 | analog right-stick camera in Auto cam (0 = digital bindings only) |
-| `GamepadCameraSensX` | 5 (8 on Switch) | orbit sensitivity (1-10) |
-| `GamepadCameraSensY` | 5 (8 on Switch) | elevation sensitivity (1-10) |
+| `GamepadCameraSensX` | 5 (6 on Switch) | orbit sensitivity (1-10) |
+| `GamepadCameraSensY` | 5 (6 on Switch) | elevation sensitivity (1-10) |
 | `GamepadCameraInvertY` | 0 | invert elevation axis |
 
 The deadzone is shared with the rest of the gamepad (`GamepadDeadzone`). There is
-no stick zoom: the triggers are movement and the remaining buttons are bound, so
-zoom stays on the keyboard and mouse.
+no stick zoom: the triggers are movement. With `GamepadDpadZoom` the D-pad's up
+and down zoom instead; otherwise zoom stays on the keyboard and mouse.
 
 ## Live tuning (console cvars)
 

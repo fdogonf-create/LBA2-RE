@@ -62,6 +62,7 @@ option(LBA2_BUILD_ASM_EQUIV_TESTS "Build ASM↔CPP equivalence tests (requires o
 # a player's build. Idle, it is a flag test per draw call: 2400 headless ticks took the same
 # 4.6 s with it and without on an Apple Silicon Mac.
 option(ENABLE_POLY_RECORDING "Enable polygon call recording for ASM-vs-CPP testing" ${LBA2_BUILD_TESTS})
+set(LBA2_DEFAULT_LANGUAGE "" CACHE STRING "Text language a fresh install starts in, as an index: 0 English, 1 French, 2 German, 3 Spanish, 4 Italian, 5 Portuguese (empty = English)")
 option(LBA2_MODERN_GAMEPAD "Start with analog movement (left stick walks the way it points) and the Auto camera, for pad-only consoles" OFF)
 option(LBA2_GAMEPAD_STICK_LAYOUT "Default to left-stick movement and east-button dodge (controllers without triggers or stick clicks)" OFF)
 option(LBA2_VITA_DIAGNOSTICS "Capture early Vita boot/stdout/stderr locally and enable optional DEBUGNET" OFF)

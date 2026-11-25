@@ -60,6 +60,7 @@ static inline U32 DosAvailableMem(void) { return 0; }
 #include <sys/stat.h>
 #include <unistd.h>
 #include "AMBIANCE.H"
+#include "ANALOGMOVE.H" /* the pad's behaviour cycle */
 
 /*#ifndef DEMO
 #define THOMAS  1
@@ -77,6 +78,25 @@ extern T_OBJ_3D InvObjTwinsen[];
 extern S32 PersoFlashTimer; // pour quand le perso eh ben y meurt !!!
 
 S32 EscTimer;
+
+/* The behaviour key that steps on from `comportement`: normal, sporty,
+ * aggressive, discreet and round again. The diving suit has only its normal and
+ * sporty pair, and anything else (the jetpack, the conch) steps back to normal. */
+static U32 NextBehaviourInput(S32 comportement) {
+    switch (comportement) {
+    case C_NORMAL:
+        return I_SPORTIF;
+    case C_SPORTIF:
+        return I_AGRESSIF;
+    case C_AGRESSIF:
+        return I_DISCRET;
+    case C_SCAPH_INT_NORM:
+    case C_SCAPH_EXT_NORM:
+        return I_SPORTIF;
+    default:
+        return I_NORMAL;
+    }
+}
 
 /*══════════════════════════════════════════════════════════════════════════*/
 char NamePcxSave[ADELINE_MAX_PATH];
@@ -1454,6 +1474,12 @@ restartloop:
                     WaitNoKey35 = TRUE;
                 } else
                     WaitNoKey35 = FALSE;
+            }
+
+            /* A tap of ZL asks for the next behaviour, through the same inputs
+               the direct behaviour keys use, so every rule below still applies. */
+            if (AnalogMove_BehaviourCyclePressed()) {
+                Input |= NextBehaviourInput(Comportement);
             }
 
             if ((Input & (I_NORMAL | I_SPORTIF | I_AGRESSIF | I_DISCRET))

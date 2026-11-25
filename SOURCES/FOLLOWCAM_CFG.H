@@ -214,11 +214,15 @@
 #define FOLLOW_CAM_ORBIT_GLIDE_STOP 2 /* drop the tail once it decays below this (units/frame) */
 
 /* Mouse camera --------------------------------------------------------------*/
-#define MOUSE_CAM_DIVISOR_DEFAULT 4   /* pixel-to-angle scaling (lower = faster) */
-#define MOUSE_CAM_SMOOTHING_DEFAULT 2 /* BetaCam lerp divisor during orbit (1=snap, higher=laggier) */
-#define MOUSE_CAM_DEAD_ZONE 2         /* ignore deltas smaller than this (pixels, pre-scale) */
-#define MOUSE_CAM_ZOOM_MULT 1         /* wheel zoom multiplier (applied to FOLLOW_CAM_ZOOM_STEP) */
-#define MOUSE_CAM_SENS_DEFAULT 4      /* default sensitivity (1-10 range) */
+#define MOUSE_CAM_DIVISOR_DEFAULT 4 /* pixel-to-angle scaling (lower = faster) */
+/* BetaCam lerp divisor during orbit (1=snap, higher=laggier). A pad-only build
+ * (LBA2_MODERN_GAMEPAD) eases harder, the stick being its only camera control. */
+#ifndef MOUSE_CAM_SMOOTHING_DEFAULT
+#define MOUSE_CAM_SMOOTHING_DEFAULT 2
+#endif
+#define MOUSE_CAM_DEAD_ZONE 2    /* ignore deltas smaller than this (pixels, pre-scale) */
+#define MOUSE_CAM_ZOOM_MULT 1    /* wheel zoom multiplier (applied to FOLLOW_CAM_ZOOM_STEP) */
+#define MOUSE_CAM_SENS_DEFAULT 4 /* default sensitivity (1-10 range) */
 
 /* HD vertical-FOV recompose (Auto camera only; community) -------------------*/
 /* The exterior projection has a fixed focal (ChampX/ChampZ = 600); a taller
@@ -287,7 +291,7 @@
 
 /* Gamepad right-stick camera ------------------------------------------------*/
 /* Default right-stick sensitivity (1-10 range). A pad-only build
- * (LBA2_MODERN_GAMEPAD) starts faster, the stick being its only camera control. */
+ * (LBA2_MODERN_GAMEPAD) sets its own, with the squared response curve. */
 #ifndef GAMEPAD_CAM_SENS_DEFAULT
 #define GAMEPAD_CAM_SENS_DEFAULT 5
 #endif

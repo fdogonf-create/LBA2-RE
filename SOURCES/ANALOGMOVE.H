@@ -24,7 +24,31 @@
  * walking, so a reversal does not walk him round a wide circle. */
 #define ANALOG_MOVE_WALK_MAX_DIFF 1024
 
-extern S32 GamepadAnalogMove; /* 1 = left stick moves Twinsen the way it points */
+#ifndef LBA2_MODERN_PAD_DEFAULT
+#define LBA2_MODERN_PAD_DEFAULT 0
+#endif
+
+extern S32 GamepadAnalogMove;     /* 1 = left stick moves Twinsen the way it points */
+extern S32 GamepadDpadZoom;       /* 1 = D-pad up / down zoom the Auto camera in / out */
+extern S32 GamepadBehaviourCycle; /* 1 = a tap of ZL steps to the next behaviour */
+extern S32 GamepadCameraCurve;    /* 1 = right stick answers small tilts gently (squared ramp) */
+
+/* Zoom per frame while the D-pad is held, in camera distance units: the full
+ * range (FOLLOW_CAM_DIST_MIN..MAX) in about two seconds. */
+#define ANALOG_MOVE_DPAD_ZOOM_STEP 110
+
+/* True on the frame ZL goes down with GamepadBehaviourCycle on; the caller
+ * turns it into the next behaviour. Held, it does not repeat. */
+S32 AnalogMove_BehaviourCyclePressed(void);
+
+/* The D-pad's zoom for this frame: positive in (up), negative out (down), 0
+ * with the setting off or neither held. */
+S32 AnalogMove_DpadZoom(void);
+
+/* A right-stick step after the response curve (pure): `step` scaled by how far
+ * past the deadzone the stick is (0..1024), and by that again when `curved`, so a
+ * small tilt turns the camera slowly and only a full one reaches `step`. */
+S32 AnalogMove_CurveStep(S32 step, S32 travel1024, S32 curved);
 
 /* The hero's manual move, before it reads Input: with the stick held, turns
  * `*beta` toward the stick's direction (unless `canTurn` is 0, as mid-jump) and

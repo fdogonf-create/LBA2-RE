@@ -7,9 +7,39 @@
 #include "RECORD.H"
 
 #include <SYSTEM/INPUT.H>
+#include <SYSTEM/KEYBOARD.H>
+#include <SYSTEM/KEYBOARD_KEYS.H>
 #include <SYSTEM/TIMER.H>
 
 S32 GamepadAnalogMove = LBA2_ANALOG_MOVE_DEFAULT;
+S32 GamepadDpadZoom = LBA2_MODERN_PAD_DEFAULT;
+S32 GamepadBehaviourCycle = LBA2_MODERN_PAD_DEFAULT;
+S32 GamepadCameraCurve = LBA2_MODERN_PAD_DEFAULT;
+
+static S32 s_cycleHeld = 0;
+
+S32 AnalogMove_BehaviourCyclePressed(void) {
+    S32 down;
+    S32 pressed;
+    if (!GamepadBehaviourCycle || !JoystickIsPresent() || Record_IsReplaying()) {
+        s_cycleHeld = 0;
+        return 0;
+    }
+    down = CheckKey(K_GAMEPAD_LTRIGGER) ? 1 : 0;
+    pressed = down && !s_cycleHeld;
+    s_cycleHeld = down;
+    return pressed;
+}
+
+S32 AnalogMove_DpadZoom(void) {
+    if (!GamepadDpadZoom || !JoystickIsPresent() || Record_IsReplaying())
+        return 0;
+    if (CheckKey(K_GAMEPAD_DPAD_UP))
+        return ANALOG_MOVE_DPAD_ZOOM_STEP;
+    if (CheckKey(K_GAMEPAD_DPAD_DOWN))
+        return -ANALOG_MOVE_DPAD_ZOOM_STEP;
+    return 0;
+}
 
 /* The camera yaw the stick is read against while it stays held. A classic
  * exterior camera cuts when Twinsen leaves the screen, and the Auto camera

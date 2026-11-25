@@ -82,12 +82,27 @@ static void test_iso(void) {
     check_iso(-30000, -7000);
 }
 
+static void test_curve_step(void) {
+    /* Linear: proportional to travel. */
+    ASSERT_EQ_INT(0, AnalogMove_CurveStep(36, 0, 0));
+    ASSERT_EQ_INT(18, AnalogMove_CurveStep(36, 512, 0));
+    ASSERT_EQ_INT(36, AnalogMove_CurveStep(36, 1024, 0));
+    /* Squared: a half tilt gives a quarter of the speed, a full one all of it. */
+    ASSERT_EQ_INT(9, AnalogMove_CurveStep(36, 512, 1));
+    ASSERT_EQ_INT(36, AnalogMove_CurveStep(36, 1024, 1));
+    ASSERT_TRUE(AnalogMove_CurveStep(36, 256, 1) < AnalogMove_CurveStep(36, 256, 0));
+    /* Out of range travel is clamped. */
+    ASSERT_EQ_INT(36, AnalogMove_CurveStep(36, 5000, 1));
+    ASSERT_EQ_INT(0, AnalogMove_CurveStep(36, -5, 1));
+}
+
 int main(void) {
     RUN_TEST(test_angle_diff);
     RUN_TEST(test_step_toward);
     RUN_TEST(test_stick_angle);
     RUN_TEST(test_exterior);
     RUN_TEST(test_iso);
+    RUN_TEST(test_curve_step);
     TEST_SUMMARY();
     return test_failures != 0;
 }

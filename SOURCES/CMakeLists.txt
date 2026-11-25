@@ -7,9 +7,17 @@ if(WIN32)
 endif()
 
 set(EMBEDDED_LBA2_CFG_CPP ${CMAKE_BINARY_DIR}/SOURCES/embedded_lba2_cfg_data.cpp)
+# The text language a fresh install starts in, as the TabLanguage index
+# (MESSAGE.CPP): empty keeps the seed's English.
+set(_LBA2_LANGUAGE_NAMES "English;Français;Deutsch;Español;Italiano;Portugues")
+set(_LBA2_SEED_LANGUAGE "")
+if(NOT LBA2_DEFAULT_LANGUAGE STREQUAL "")
+    list(GET _LBA2_LANGUAGE_NAMES ${LBA2_DEFAULT_LANGUAGE} _LBA2_SEED_LANGUAGE)
+endif()
 add_custom_command(
     OUTPUT ${EMBEDDED_LBA2_CFG_CPP}
     COMMAND ${CMAKE_COMMAND} "-DINPUT=${CMAKE_SOURCE_DIR}/SOURCES/LBA2.CFG"
+            "-DLANGUAGE=${_LBA2_SEED_LANGUAGE}" "-DMODERN_PAD=${LBA2_MODERN_GAMEPAD}"
             "-DOUTPUT=${EMBEDDED_LBA2_CFG_CPP}" -P
             ${CMAKE_SOURCE_DIR}/cmake/embed_lba2_cfg.cmake
     DEPENDS ${CMAKE_SOURCE_DIR}/SOURCES/LBA2.CFG ${CMAKE_SOURCE_DIR}/cmake/embed_lba2_cfg.cmake
@@ -66,9 +74,12 @@ else()
     add_executable(${LBA2_EXECUTABLE_NAME} ${SOURCES_FILES} ${SOURCES_FILES_ASM} ${SOURCES_FILES_WIN} ${SOURCES_FILES_MACOS} ${EMBEDDED_LBA2_CFG_CPP})
 endif()
 target_sources(${LBA2_EXECUTABLE_NAME} PRIVATE $<TARGET_OBJECTS:lba2_platform_entry>)
+if(NOT LBA2_DEFAULT_LANGUAGE STREQUAL "")
+    target_compile_definitions(${LBA2_EXECUTABLE_NAME} PRIVATE LBA2_DEFAULT_LANGUAGE=${LBA2_DEFAULT_LANGUAGE})
+endif()
 if(LBA2_MODERN_GAMEPAD)
     target_compile_definitions(${LBA2_EXECUTABLE_NAME} PRIVATE LBA2_ANALOG_MOVE_DEFAULT=1 LBA2_FOLLOW_CAMERA_DEFAULT=1
-                               GAMEPAD_CAM_SENS_DEFAULT=8)
+                               LBA2_MODERN_PAD_DEFAULT=1 GAMEPAD_CAM_SENS_DEFAULT=6 MOUSE_CAM_SMOOTHING_DEFAULT=4)
 endif()
 if(LBA2_GAMEPAD_STICK_LAYOUT)
     target_compile_definitions(${LBA2_EXECUTABLE_NAME} PRIVATE LBA2_GAMEPAD_STICK_LAYOUT=1)

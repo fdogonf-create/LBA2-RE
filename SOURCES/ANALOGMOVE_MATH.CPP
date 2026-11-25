@@ -49,3 +49,15 @@ S32 AnalogMove_TargetIso(S32 x, S32 y) {
     double wz = (-a - b) * 0.5;
     return RadiansToBeta(atan2(wx, wz));
 }
+
+S32 AnalogMove_CurveStep(S32 step, S32 travel1024, S32 curved) {
+    if (travel1024 <= 0)
+        return 0;
+    if (travel1024 > 1024)
+        travel1024 = 1024;
+    if (!curved)
+        return step * travel1024 / 1024;
+    /* step is a per-frame camera speed, at most a few hundred, so the product
+       stays inside 32 bits. */
+    return step * travel1024 * travel1024 / (1024 * 1024);
+}

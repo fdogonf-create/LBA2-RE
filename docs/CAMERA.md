@@ -20,7 +20,7 @@ These work outdoors with the Auto camera on.
 | --- | --- | --- | --- |
 | Orbit round Twinsen | `[` / `]` | drag with the right button | right stick left / right |
 | Tilt up and down | numpad `+` / `-`, or Page Up / Page Down | drag with the right button | right stick up / down |
-| Zoom in / out | numpad `/` / `*` | wheel | none |
+| Zoom in / out | numpad `/` / `*` | wheel | D-pad up / down, with `pad_dpad_zoom` (on in the Switch build) |
 | Put the camera behind Twinsen | Enter | middle button | B |
 | Quarter turn | Backspace | none | none |
 
