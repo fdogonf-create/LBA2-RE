@@ -61,10 +61,10 @@ void AnalogMove_Apply(S32 *beta, S32 canTurn) {
 
     if (CubeMode == CUBE_EXTERIEUR) {
         S32 stick = AnalogMove_StickAngle(lx, ly);
-        if (!s_held
-                OR AnalogMove_AngleDiff(s_refStickAngle, stick) > ANALOG_MOVE_RELATCH_ANGLE
-                OR AnalogMove_AngleDiff(s_refStickAngle, stick) < -ANALOG_MOVE_RELATCH_ANGLE
-                OR ManualCameraOrbitActive) {
+        S32 swing = AnalogMove_AngleDiff(s_refStickAngle, stick);
+        if (swing < 0)
+            swing = -swing;
+        if (!s_held || swing > ANALOG_MOVE_RELATCH_ANGLE || ManualCameraOrbitActive) {
             s_refBetaCam = BetaCam;
             s_refStickAngle = stick;
         }

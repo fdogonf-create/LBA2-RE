@@ -43,7 +43,7 @@ S32 AnalogMove_TargetExterior(S32 x, S32 y, S32 betaCam) {
 S32 AnalogMove_TargetIso(S32 x, S32 y) {
     /* LongProjectPointIso: Xp grows with 3(x-z)/64, Yp with 3(x+z)/128, so one
      * screen unit up costs twice the world distance of one unit across. */
-    double a = (double)x;         /* screen right */
+    double a = (double)x;          /* screen right */
     double b = 2.0 * (double)(-y); /* screen up, scaled to match */
     double wx = (a - b) * 0.5;
     double wz = (-a - b) * 0.5;
