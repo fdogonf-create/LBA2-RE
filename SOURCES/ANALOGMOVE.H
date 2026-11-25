@@ -28,8 +28,12 @@ extern S32 GamepadAnalogMove; /* 1 = left stick moves Twinsen the way it points 
 
 /* The hero's manual move, before it reads Input: with the stick held, turns
  * `*beta` toward the stick's direction (unless `canTurn` is 0, as mid-jump) and
- * replaces Input's movement bits with a step forward once he faces near enough. */
-void AnalogMove_Apply(S32 *beta, S32 canTurn);
+ * replaces Input's movement bits with a step forward once he faces near enough.
+ * `exterior` reads the stick against the 3D camera at yaw `betaCam`, otherwise
+ * against the isometric view; `climbing` (on a ladder) leaves the frame to the
+ * original controls; `cameraOrbiting` (the player turning the camera) takes the
+ * camera's yaw again. */
+void AnalogMove_Apply(S32 *beta, S32 canTurn, S32 exterior, S32 climbing, S32 betaCam, S32 cameraOrbiting);
 
 /* Pure helpers (host-tested). Stick values are SDL axis units, Y+ = down. */
 

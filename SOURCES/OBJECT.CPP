@@ -4078,7 +4078,11 @@ void DoDir(U8 numobj) {
             /* Mid-jump and during an animation that rotates him, the tank
                controls leave his facing alone too. */
             AnalogMove_Apply(&ptrobj->Obj.Beta,
-                             !(Jumping & 1023) AND !(ptrobj->WorkFlags & ANIM_MASTER_ROT));
+                             !(Jumping & 1023) AND !(ptrobj->WorkFlags & ANIM_MASTER_ROT),
+                             CubeMode == CUBE_EXTERIEUR,
+                             FlagClimbing OR PtrZoneClimb != NULL,
+                             BetaCam,
+                             ManualCameraOrbitActive);
         }
 
         if ((Input & I_ACTION_ALWAYS)

@@ -1,13 +1,12 @@
 /*--------------------------------------------------------------------------*/
 /* Analog movement glue: turns the left stick into a facing and a step forward
  * for the hero's manual move. The angle math is in ANALOGMOVE_MATH.CPP. */
-#include "C_EXTERN.H"
-
 #include "ANALOGMOVE.H"
 #include "INPUT.H"
 #include "JOYSTICK.H"
 #include "RECORD.H"
 
+#include <SYSTEM/INPUT.H>
 #include <SYSTEM/TIMER.H>
 
 S32 GamepadAnalogMove = LBA2_ANALOG_MOVE_DEFAULT;
@@ -27,7 +26,7 @@ static U32 s_lastTime = 0;
 /* A frame longer than this (a pause, a load) turns him no further than this one. */
 #define ANALOG_MOVE_MAX_DT_MS 100
 
-void AnalogMove_Apply(S32 *beta, S32 canTurn) {
+void AnalogMove_Apply(S32 *beta, S32 canTurn, S32 exterior, S32 climbing, S32 betaCam, S32 cameraOrbiting) {
     S16 lx = 0;
     S16 ly = 0;
     S32 dz;
@@ -41,7 +40,7 @@ void AnalogMove_Apply(S32 *beta, S32 canTurn) {
 
     /* A replay drives the hero from the recorded keys alone; the stick's raw
        axes are not in a recording. */
-    if (!GamepadAnalogMove OR !JoystickIsPresent() OR Record_IsReplaying()) {
+    if (!GamepadAnalogMove || !JoystickIsPresent() || Record_IsReplaying()) {
         s_held = 0;
         return;
     }
@@ -54,18 +53,18 @@ void AnalogMove_Apply(S32 *beta, S32 canTurn) {
     }
 
     /* Ladders read up and down as climb and descend. */
-    if (FlagClimbing OR PtrZoneClimb) {
+    if (climbing) {
         s_held = 0;
         return;
     }
 
-    if (CubeMode == CUBE_EXTERIEUR) {
+    if (exterior) {
         S32 stick = AnalogMove_StickAngle(lx, ly);
         S32 swing = AnalogMove_AngleDiff(s_refStickAngle, stick);
         if (swing < 0)
             swing = -swing;
-        if (!s_held || swing > ANALOG_MOVE_RELATCH_ANGLE || ManualCameraOrbitActive) {
-            s_refBetaCam = BetaCam;
+        if (!s_held || swing > ANALOG_MOVE_RELATCH_ANGLE || cameraOrbiting) {
+            s_refBetaCam = betaCam;
             s_refStickAngle = stick;
         }
         target = AnalogMove_TargetExterior(lx, ly, s_refBetaCam);
@@ -83,7 +82,7 @@ void AnalogMove_Apply(S32 *beta, S32 canTurn) {
     }
     diff = AnalogMove_AngleDiff(*beta, target);
 
-    if (diff <= ANALOG_MOVE_WALK_MAX_DIFF AND diff >= -ANALOG_MOVE_WALK_MAX_DIFF) {
+    if (diff <= ANALOG_MOVE_WALK_MAX_DIFF && diff >= -ANALOG_MOVE_WALK_MAX_DIFF) {
         Input |= I_UP;
     }
 }
