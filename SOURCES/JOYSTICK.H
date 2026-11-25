@@ -33,6 +33,10 @@ S32 JoystickIsPresent(void);
 // (EXTFUNC) when it owns the right stick.
 void JoystickGetRightStick(S16 *x, S16 *y);
 
+// Raw left-stick axes (SDL units), cached the same way. Used by analog movement
+// (ANALOGMOVE.CPP) when it is switched on.
+void JoystickGetLeftStick(S16 *x, S16 *y);
+
 // Session recording and the `stick` console command: put the three values back that
 // UpdateJoystick derives and clears on every poll. Called between that clear and the
 // read, which is where the input poll's hooks sit.

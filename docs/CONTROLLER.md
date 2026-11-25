@@ -8,6 +8,33 @@ UI navigation uses fixed controls, independent of gameplay movement: the left st
 
 Keyboard navigation uses arrows and keypad 8/2/4/6. These UI controls are not configurable and have no binding editor or config entries; Options → Controls edits gameplay bindings only. See [MENU.md](MENU.md#navigation).
 
+## Analog movement
+
+With `GamepadAnalogMove` on, the gamepad's left stick walks Twinsen the way it
+points on screen, instead of the original tank controls (forward on a trigger,
+the stick turning him). He turns quickly toward the stick and walks once he
+faces within a quarter turn of it, so pulling the stick back turns him round
+rather than walking him backwards. Outdoors the direction is read against the
+camera; it is held while the stick stays pushed the same way, so a camera cut or
+the Auto camera swinging round does not turn him under a stick that has not
+moved. Indoors it is read against the isometric view, so up on the stick is up
+on screen. The routine is `AnalogMove_Apply` in
+[SOURCES/ANALOGMOVE.CPP](../SOURCES/ANALOGMOVE.CPP); the angle math is in
+[SOURCES/ANALOGMOVE_MATH.CPP](../SOURCES/ANALOGMOVE_MATH.CPP) and host-tested.
+
+Only the left stick drives it. The keyboard, the D-pad and the triggers keep the
+original controls, and a stick at rest leaves the frame to them. Ladders keep the
+original up and down, vehicles keep their own controls, and a session replay
+ignores it, because a recording does not carry the stick's raw axes.
+
+| Key | Console | Default | Description |
+|-----|---------|---------|-------------|
+| `GamepadAnalogMove` | `pad_analog_move` | 0 (1 on Switch) | left stick walks Twinsen the way it points; 0 = original tank controls |
+
+The `LBA2_MODERN_GAMEPAD` build option, on in the Switch preset, makes a cfg
+without the key start with analog movement and the Auto camera (`FollowCamera`).
+A cfg that already holds either key keeps its value.
+
 ## Manual camera (Auto camera mode)
 
 In exterior scenes with Auto camera (`FollowCamera`) on, the player can orbit,

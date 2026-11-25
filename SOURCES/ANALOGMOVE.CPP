@@ -1,0 +1,89 @@
+/*--------------------------------------------------------------------------*/
+/* Analog movement glue: turns the left stick into a facing and a step forward
+ * for the hero's manual move. The angle math is in ANALOGMOVE_MATH.CPP. */
+#include "C_EXTERN.H"
+
+#include "ANALOGMOVE.H"
+#include "INPUT.H"
+#include "JOYSTICK.H"
+#include "RECORD.H"
+
+#include <SYSTEM/TIMER.H>
+
+S32 GamepadAnalogMove = LBA2_ANALOG_MOVE_DEFAULT;
+
+/* The camera yaw the stick is read against while it stays held. A classic
+ * exterior camera cuts when Twinsen leaves the screen, and the Auto camera
+ * swings round behind him: read against the live yaw, either would turn him
+ * under a stick that has not moved. The reference is taken again when the
+ * stick is let go or swung to a new direction. */
+static S32 s_refBetaCam = 0;
+static S32 s_refStickAngle = 0;
+static S32 s_held = 0;
+static U32 s_lastTime = 0;
+
+/* A swing past this re-reads the camera, so a new direction means the new view. */
+#define ANALOG_MOVE_RELATCH_ANGLE 512
+/* A frame longer than this (a pause, a load) turns him no further than this one. */
+#define ANALOG_MOVE_MAX_DT_MS 100
+
+void AnalogMove_Apply(S32 *beta, S32 canTurn) {
+    S16 lx = 0;
+    S16 ly = 0;
+    S32 dz;
+    S32 target;
+    S32 diff;
+    U32 now = TimerRefHR;
+    U32 dt = now - s_lastTime;
+    s_lastTime = now;
+    if (dt > ANALOG_MOVE_MAX_DT_MS)
+        dt = ANALOG_MOVE_MAX_DT_MS;
+
+    /* A replay drives the hero from the recorded keys alone; the stick's raw
+       axes are not in a recording. */
+    if (!GamepadAnalogMove OR !JoystickIsPresent() OR Record_IsReplaying()) {
+        s_held = 0;
+        return;
+    }
+
+    JoystickGetLeftStick(&lx, &ly);
+    dz = JoystickDeadzone;
+    if ((S32)lx * lx + (S32)ly * ly < dz * dz) {
+        s_held = 0;
+        return;
+    }
+
+    /* Ladders read up and down as climb and descend. */
+    if (FlagClimbing OR PtrZoneClimb) {
+        s_held = 0;
+        return;
+    }
+
+    if (CubeMode == CUBE_EXTERIEUR) {
+        S32 stick = AnalogMove_StickAngle(lx, ly);
+        if (!s_held
+                OR AnalogMove_AngleDiff(s_refStickAngle, stick) > ANALOG_MOVE_RELATCH_ANGLE
+                OR AnalogMove_AngleDiff(s_refStickAngle, stick) < -ANALOG_MOVE_RELATCH_ANGLE
+                OR ManualCameraOrbitActive) {
+            s_refBetaCam = BetaCam;
+            s_refStickAngle = stick;
+        }
+        target = AnalogMove_TargetExterior(lx, ly, s_refBetaCam);
+    } else {
+        target = AnalogMove_TargetIso(lx, ly);
+    }
+    s_held = 1;
+
+    /* The stick owns the frame's movement: no tank turn, no walking backwards. */
+    Input &= ~I_JOY;
+
+    if (canTurn) {
+        S32 step = (S32)((ANALOG_MOVE_TURN_RATE * dt) / 1000);
+        *beta = AnalogMove_StepToward(*beta, target, step);
+    }
+    diff = AnalogMove_AngleDiff(*beta, target);
+
+    if (diff <= ANALOG_MOVE_WALK_MAX_DIFF AND diff >= -ANALOG_MOVE_WALK_MAX_DIFF) {
+        Input |= I_UP;
+    }
+}

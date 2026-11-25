@@ -38,6 +38,9 @@ static StickDir s_prevRightDir = DIR_NEUTRAL;
 // JoystickGetRightStick for the analog camera. 0,0 when no pad is open.
 static S16 s_rstickX = 0;
 static S16 s_rstickY = 0;
+// Raw left-stick axes from the last poll, for analog movement. 0,0 when no pad is open.
+static S16 s_lstickX = 0;
+static S16 s_lstickY = 0;
 /* A pad the session is standing in for: a replayed one, or the `stick` command. */
 static S32 s_virtualPad = 0;
 
@@ -287,6 +290,8 @@ void UpdateJoystick(void) {
     s_firstPressedThisFrame = 0;
     s_rstickX = 0;
     s_rstickY = 0;
+    s_lstickX = 0;
+    s_lstickY = 0;
 
     if (s_gamepad == NULL) {
         return;
@@ -335,6 +340,8 @@ void UpdateJoystick(void) {
     // Cache the raw right stick for the analog camera (EXTFUNC reads it).
     s_rstickX = rx;
     s_rstickY = ry;
+    s_lstickX = lx;
+    s_lstickY = ly;
 
     ApplyStickDirection(lx, ly, K_GAMEPAD_LSTICK_LEFT, K_GAMEPAD_LSTICK_RIGHT,
                         K_GAMEPAD_LSTICK_UP, K_GAMEPAD_LSTICK_DOWN,
@@ -437,6 +444,13 @@ void JoystickGetRightStick(S16 *x, S16 *y) {
         *x = s_rstickX;
     if (y != NULL)
         *y = s_rstickY;
+}
+
+void JoystickGetLeftStick(S16 *x, S16 *y) {
+    if (x != NULL)
+        *x = s_lstickX;
+    if (y != NULL)
+        *y = s_lstickY;
 }
 
 //***************************************************************************

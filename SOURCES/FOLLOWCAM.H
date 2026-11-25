@@ -5,6 +5,13 @@
 
 struct T_SETTING; /* SETTINGS.H; a pointer to a table needs no more */
 
+/* Whether a cfg without a FollowCamera key starts on the Auto camera. Off: the
+ * classic camera is the original's. A build for a pad-only console can start on
+ * the Auto camera (LBA2_MODERN_GAMEPAD), where the right stick then orbits it. */
+#ifndef LBA2_FOLLOW_CAMERA_DEFAULT
+#define LBA2_FOLLOW_CAMERA_DEFAULT 0
+#endif
+
 /* The Auto camera (user-facing name; config key FollowCamera, legacy
  * AutoCameraCenter): the third-person camera that tracks the hero in exterior
  * cubes.  Its per-frame update, the state that update carries between frames,

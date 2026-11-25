@@ -53,7 +53,8 @@
         "ENABLE_ASM": "OFF",
         "LBA2_BUILD_TESTS": "OFF",
         "LBA2_BUILD_ASM_EQUIV_TESTS": "OFF",
-        "LBA2_NATIVE_ARCH": "OFF"
+        "LBA2_NATIVE_ARCH": "OFF",
+        "LBA2_MODERN_GAMEPAD": "ON"
       }
     },
     {
