@@ -375,12 +375,18 @@ def export_voices(common, out, voice_lang, text_lang, ref_lang):
 
 
 def export_videos(common, out, ffmpeg):
+    """Extract each movie as .smk, decode it to PNG frames + WAV with the same
+    decoder the engine uses, and build an .mp4 from those when ffmpeg exists.
+    Encoding from the decoded frames (not from the .smk) keeps players that
+    drop or mis-decode Smacker delta frames out of the picture."""
+    from smk_decode import decode
     hqr = os.path.join(common, "VIDEO", "VIDEO.HQR")
     ress = os.path.join(common, "RESS.HQR")
     ents, data = entries(ress)
     _, off, size, csize, method = ents[RESS_ACFLIST]
     names = [n.decode("ascii") for n in decompress_entry(data, off, size, csize, method).split()]
     smk_dir = os.path.join(out, "2_Videos", "smk")
+    png_root = os.path.join(out, "2_Videos", "fotogramas")
     mp4_dir = os.path.join(out, "2_Videos", "mp4")
     os.makedirs(smk_dir, exist_ok=True)
     ents, data = entries(hqr)
@@ -388,20 +394,41 @@ def export_videos(common, out, ffmpeg):
         if i >= len(ents) or not ents[i][2]:
             continue
         _, off, size, csize, method = ents[i]
-        smk_path = os.path.join(smk_dir, "%02d_%s" % (i, name.lower()))
-        with open(smk_path, "wb") as f:
-            f.write(decompress_entry(data, off, size, csize, method))
+        base = "%02d_%s" % (i, os.path.splitext(name)[0].lower())
+        smk_path = os.path.join(smk_dir, base + ".smk")
+        if not os.path.exists(smk_path):
+            with open(smk_path, "wb") as f:
+                f.write(decompress_entry(data, off, size, csize, method))
+        frames_dir = os.path.join(png_root, base)
+        if not os.path.exists(os.path.join(frames_dir, "info.txt")):
+            decode(smk_path, frames_dir)
         if ffmpeg:
             os.makedirs(mp4_dir, exist_ok=True)
-            mp4 = os.path.join(mp4_dir, os.path.splitext(os.path.basename(smk_path))[0] + ".mp4")
-            # Keep every audio track: INTRO carries music plus FR/DE/EN voices.
-            subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-i", smk_path,
-                            "-map", "0:v", "-map", "0:a?", "-c:v", "libx264",
-                            "-crf", "14", "-preset", "slow", "-pix_fmt", "yuv420p",
-                            "-c:a", "aac", "-b:a", "192k", mp4], check=False)
-        print("  %s" % os.path.basename(smk_path))
+            make_mp4(ffmpeg, frames_dir, os.path.join(mp4_dir, base + ".mp4"))
+        print("  %s" % base)
     if not ffmpeg:
-        print("  (ffmpeg no encontrado: solo se extrajeron los .smk)")
+        print("  (ffmpeg no encontrado: hay fotogramas PNG + WAV, falta el MP4)")
+
+
+def make_mp4(ffmpeg, frames_dir, mp4):
+    info = dict(line.strip().split("=", 1) for line in open(os.path.join(frames_dir, "info.txt")))
+    tracks = [t for t in info.get("audio_tracks", "").split(",") if t]
+    cmd = [ffmpeg, "-y", "-loglevel", "error", "-framerate", info["fps"],
+           "-i", os.path.join(frames_dir, "frame_%05d.png")]
+    # Track 0 is music/effects; INTRO adds voices on 1/2/3 (FR/DE/EN).
+    voice = "3" if "3" in tracks else None
+    for t in (["0"] if "0" in tracks else []) + ([voice] if voice else []):
+        cmd += ["-i", os.path.join(frames_dir, "track%s.wav" % t)]
+    n_audio = len(cmd[cmd.index("-i") + 2:]) // 2
+    if n_audio == 2:
+        cmd += ["-filter_complex", "[1:a][2:a]amix=inputs=2:normalize=0[a]", "-map", "0:v", "-map", "[a]"]
+    elif n_audio == 1:
+        cmd += ["-map", "0:v", "-map", "1:a"]
+    cmd += ["-c:v", "libx264", "-crf", "12", "-preset", "slow", "-pix_fmt", "yuv420p",
+            "-vf", "scale=iw*3:ih*3:flags=neighbor"]
+    if n_audio:
+        cmd += ["-c:a", "aac", "-b:a", "192k"]
+    subprocess.run(cmd + [mp4], check=False)
 
 
 def cmd_export(a):
