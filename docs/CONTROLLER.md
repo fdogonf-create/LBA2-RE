@@ -32,7 +32,7 @@ ignores it, because a recording does not carry the stick's raw axes.
 | `GamepadAnalogMove` | `pad_analog_move` | 0 (1 on Switch) | left stick walks Twinsen the way it points; 0 = original tank controls |
 
 The `LBA2_MODERN_GAMEPAD` build option, on in the Switch preset, makes a cfg
-without the key start with analog movement and the Auto camera (`FollowCamera`).
+without the key start with analog movement, the Auto camera (`FollowCamera`) and right-stick sensitivity 8.
 A cfg that already holds either key keeps its value.
 
 ## Manual camera (Auto camera mode)
@@ -114,8 +114,8 @@ on their own behalf, so neither needs a device plugged in
 | Key | Default | Description |
 |-----|---------|-------------|
 | `GamepadCameraAnalog` | 1 | analog right-stick camera in Auto cam (0 = digital bindings only) |
-| `GamepadCameraSensX` | 5 | orbit sensitivity (1-10) |
-| `GamepadCameraSensY` | 5 | elevation sensitivity (1-10) |
+| `GamepadCameraSensX` | 5 (8 on Switch) | orbit sensitivity (1-10) |
+| `GamepadCameraSensY` | 5 (8 on Switch) | elevation sensitivity (1-10) |
 | `GamepadCameraInvertY` | 0 | invert elevation axis |
 
 The deadzone is shared with the rest of the gamepad (`GamepadDeadzone`). There is

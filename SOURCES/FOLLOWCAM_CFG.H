@@ -286,7 +286,11 @@
 #define FOLLOW_CAM_OBSTRUCT_FLOOR_REACH 2048 /* distance on either axis over which a floor is kept (world units, four bricks) */
 
 /* Gamepad right-stick camera ------------------------------------------------*/
-#define GAMEPAD_CAM_SENS_DEFAULT 5 /* default right-stick sensitivity (1-10 range) */
+/* Default right-stick sensitivity (1-10 range). A pad-only build
+ * (LBA2_MODERN_GAMEPAD) starts faster, the stick being its only camera control. */
+#ifndef GAMEPAD_CAM_SENS_DEFAULT
+#define GAMEPAD_CAM_SENS_DEFAULT 5
+#endif
 /* Defaults for the runtime GamepadCamMaxBeta / GamepadCamMaxAlpha globals
  * (cvar cam_stick_max_x / cam_stick_max_y, cfg keys of the same name). */
 #define GAMEPAD_CAM_BETA_MAX_DEFAULT 36  /* orbit units per frame at full deflection, sens 10 (the ceiling) */

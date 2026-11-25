@@ -12,6 +12,11 @@ typedef enum {
     AppletOperationMode_Console
 } AppletOperationMode;
 
+typedef enum {
+    ApmCpuBoostMode_Normal = 0,
+    ApmCpuBoostMode_FastLoad = 1
+} ApmCpuBoostMode;
+
 typedef struct {
     int initialized;
 } ErrorApplicationConfig;
@@ -21,6 +26,7 @@ extern "C" {
 #endif
 
 AppletOperationMode appletGetOperationMode(void);
+Result appletSetCpuBoostMode(ApmCpuBoostMode mode);
 Result errorApplicationCreate(ErrorApplicationConfig *config, const char *dialog, const char *fullscreen);
 Result errorApplicationShow(ErrorApplicationConfig *config);
 extern struct in_addr __nxlink_host;

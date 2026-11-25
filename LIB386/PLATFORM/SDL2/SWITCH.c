@@ -86,6 +86,16 @@ void SDL2_SwitchEndNetloader(void) {
     socketExit();
 }
 
+/* The 3D outdoor scenes are drawn in software, and at the console's stock
+ * 1020 MHz the follow camera, which redraws the whole scene every frame, drops
+ * frames. The boost mode the system offers applications for loading raises the
+ * CPU to 1785 MHz. A refusal leaves the stock clock, which still runs. */
+void SDL2_SwitchSetCpuBoost(bool enable) {
+    const Result result = appletSetCpuBoostMode(enable ? ApmCpuBoostMode_FastLoad : ApmCpuBoostMode_Normal);
+    if (R_FAILED(result))
+        Platform_Log(PLATFORM_LOG_WARN, "Unable to set the Switch CPU boost mode: 0x%08x", (unsigned int)result);
+}
+
 const char *SDL2_SwitchBasePath(void) {
     return "sdmc:/switch/lba2cc/";
 }
