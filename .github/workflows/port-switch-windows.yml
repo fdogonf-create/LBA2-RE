@@ -1,0 +1,48 @@
+name: Port Switch + Windows
+
+# One run that builds the Windows portable ZIP and the Nintendo Switch .NRO
+# (SD-card ZIP) side by side, so a tester has a single place to download both.
+# It only calls windows' and switch's reusable build workflows; the build steps
+# live there. Artifacts are named port-windows-x64 and port-switch so they are
+# not confused with the ones the standalone Windows and Nintendo Switch
+# workflows upload.
+
+# See linux.yml for paths-ignore rationale.
+on:
+  push:
+    paths-ignore: &doc-paths
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.vscode/**'
+      - '.editorconfig'
+      - '.git-blame-ignore-revs'
+      - 'cliff.toml'
+  pull_request:
+    paths-ignore: *doc-paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# switch.yml declares its own concurrency group as
+# `${{ github.workflow }}-${{ github.ref }}`. In a called workflow
+# github.workflow is the caller's name, so a caller group built the same way
+# would equal the called one and the run would cancel itself. A literal prefix
+# keeps the two groups apart.
+concurrency:
+  group: port-switch-windows-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    uses: ./.github/workflows/reusable-build-windows.yml
+    with:
+      artifact-prefix: port-windows
+
+  build-switch:
+    uses: ./.github/workflows/switch.yml
+    with:
+      artifact-name: port-switch
