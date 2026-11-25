@@ -8,7 +8,9 @@ endif()
 nx_generate_nacp(OUTPUT "${_SWITCH_NACP}"
     NAME "${LBA2_PRODUCT_NAME}" AUTHOR "LBALab"
     VERSION "${_SWITCH_VERSION}")
-nx_create_nro(${LBA2_EXECUTABLE_NAME} OUTPUT "${_SWITCH_NRO}" NACP "${_SWITCH_NACP}")
+# Homebrew Menu shows a 256x256 JPEG.
+nx_create_nro(${LBA2_EXECUTABLE_NAME} OUTPUT "${_SWITCH_NRO}" NACP "${_SWITCH_NACP}"
+    ICON "${CMAKE_SOURCE_DIR}/packaging/switch/icon.jpg")
 configure_file("${CMAKE_SOURCE_DIR}/packaging/switch-readme.txt.in"
     "${CMAKE_BINARY_DIR}/packaging/switch-README.txt" @ONLY)
 

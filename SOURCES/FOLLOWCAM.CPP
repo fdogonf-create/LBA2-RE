@@ -21,7 +21,7 @@
  * display rate (~60 Hz). When the hero is idle, all work is skipped entirely. */
 /* Settings, read from the cfg and mostly exposed as console cvars. Defaults in
  * FOLLOWCAM_CFG.H. Declared in FOLLOWCAM.H. */
-S32 FollowCamera = FALSE;
+S32 FollowCamera = LBA2_FOLLOW_CAMERA_DEFAULT;
 S32 FollowCamInterior = FOLLOW_CAM_INTERIOR_DEFAULT;
 S32 FollowCamReengageFrames = FOLLOW_CAM_REENGAGE_FRAMES_DEFAULT;
 S32 FollowCamDriftDivisor = FOLLOW_CAM_DRIFT_DIVISOR_DEFAULT;

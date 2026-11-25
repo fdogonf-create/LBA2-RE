@@ -371,7 +371,19 @@ void InitLanguage() {
     /* A missing key means English, which is what the shipped default config
        says and what every retail LBA2.CFG we have says. Reading the default
        through the same match keeps the two paths from drifting apart. */
+#ifdef LBA2_DEFAULT_LANGUAGE
+    /* A build for players of another language starts there. The config beside
+       the game data was written by whatever installed it, not chosen by the
+       player, so it does not hold this build to English either; a language
+       picked in the Options menu is in the player's own file and wins. */
+    if (DefFileBufferKeyOrigin("Language") == DEFFILE_ORIGIN_OWNED) {
+        strcpy(string, DefFileBufferReadStringDefault("Language", TabLanguage[LBA2_DEFAULT_LANGUAGE]));
+    } else {
+        strcpy(string, TabLanguage[LBA2_DEFAULT_LANGUAGE]);
+    }
+#else
     strcpy(string, DefFileBufferReadStringDefault("Language", TabLanguage[0]));
+#endif
 
     n = FindLanguage(string);
     if (n < 0) {

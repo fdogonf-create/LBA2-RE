@@ -214,11 +214,15 @@
 #define FOLLOW_CAM_ORBIT_GLIDE_STOP 2 /* drop the tail once it decays below this (units/frame) */
 
 /* Mouse camera --------------------------------------------------------------*/
-#define MOUSE_CAM_DIVISOR_DEFAULT 4   /* pixel-to-angle scaling (lower = faster) */
-#define MOUSE_CAM_SMOOTHING_DEFAULT 2 /* BetaCam lerp divisor during orbit (1=snap, higher=laggier) */
-#define MOUSE_CAM_DEAD_ZONE 2         /* ignore deltas smaller than this (pixels, pre-scale) */
-#define MOUSE_CAM_ZOOM_MULT 1         /* wheel zoom multiplier (applied to FOLLOW_CAM_ZOOM_STEP) */
-#define MOUSE_CAM_SENS_DEFAULT 4      /* default sensitivity (1-10 range) */
+#define MOUSE_CAM_DIVISOR_DEFAULT 4 /* pixel-to-angle scaling (lower = faster) */
+/* BetaCam lerp divisor during orbit (1=snap, higher=laggier). A pad-only build
+ * (LBA2_MODERN_GAMEPAD) eases harder, the stick being its only camera control. */
+#ifndef MOUSE_CAM_SMOOTHING_DEFAULT
+#define MOUSE_CAM_SMOOTHING_DEFAULT 2
+#endif
+#define MOUSE_CAM_DEAD_ZONE 2    /* ignore deltas smaller than this (pixels, pre-scale) */
+#define MOUSE_CAM_ZOOM_MULT 1    /* wheel zoom multiplier (applied to FOLLOW_CAM_ZOOM_STEP) */
+#define MOUSE_CAM_SENS_DEFAULT 4 /* default sensitivity (1-10 range) */
 
 /* HD vertical-FOV recompose (Auto camera only; community) -------------------*/
 /* The exterior projection has a fixed focal (ChampX/ChampZ = 600); a taller
@@ -286,7 +290,11 @@
 #define FOLLOW_CAM_OBSTRUCT_FLOOR_REACH 2048 /* distance on either axis over which a floor is kept (world units, four bricks) */
 
 /* Gamepad right-stick camera ------------------------------------------------*/
-#define GAMEPAD_CAM_SENS_DEFAULT 5 /* default right-stick sensitivity (1-10 range) */
+/* Default right-stick sensitivity (1-10 range). A pad-only build
+ * (LBA2_MODERN_GAMEPAD) sets its own, with the squared response curve. */
+#ifndef GAMEPAD_CAM_SENS_DEFAULT
+#define GAMEPAD_CAM_SENS_DEFAULT 5
+#endif
 /* Defaults for the runtime GamepadCamMaxBeta / GamepadCamMaxAlpha globals
  * (cvar cam_stick_max_x / cam_stick_max_y, cfg keys of the same name). */
 #define GAMEPAD_CAM_BETA_MAX_DEFAULT 36  /* orbit units per frame at full deflection, sens 10 (the ceiling) */

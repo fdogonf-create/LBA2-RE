@@ -18,6 +18,8 @@ static int connectionSocket = -1;
 static bool connectionFails;
 static FILE *connectionOutput;
 static bool stdoutDetachedAtExit, stderrDetachedAtExit;
+static int boostMode = -1;
+static Result boostResult;
 
 static bool same_file(int a, int b) {
     struct stat first, second;
@@ -66,6 +68,10 @@ extern "C" void socketExit(void) {
     }
 }
 
+extern "C" Result appletSetCpuBoostMode(ApmCpuBoostMode requested) {
+    boostMode = (int)requested;
+    return boostResult;
+}
 extern "C" AppletOperationMode appletGetOperationMode(void) {
     return mode;
 }
@@ -316,6 +322,24 @@ static void test_native_message_and_failures() {
     Platform_SetLogOutput(NULL, NULL);
 }
 
+static void test_cpu_boost() {
+    warnings = 0;
+    boostResult = 0;
+    Platform_SetLogOutput(capture_log, NULL);
+    SDL2_SwitchSetCpuBoost(true);
+    ASSERT_EQ_INT((int)ApmCpuBoostMode_FastLoad, boostMode);
+    SDL2_SwitchSetCpuBoost(false);
+    ASSERT_EQ_INT((int)ApmCpuBoostMode_Normal, boostMode);
+    ASSERT_EQ_INT(0, warnings);
+
+    /* A refused boost is a warning: the game still runs at the stock clock. */
+    boostResult = 0x789;
+    SDL2_SwitchSetCpuBoost(true);
+    ASSERT_EQ_INT(1, warnings);
+    boostResult = 0;
+    Platform_SetLogOutput(NULL, NULL);
+}
+
 int main() {
     RUN_TEST(test_netloader_lifecycle_and_failures);
     RUN_TEST(test_netloader_restores_stdio_before_socket_exit);
@@ -323,6 +347,7 @@ int main() {
     RUN_TEST(test_installation_and_output_dimensions);
     RUN_TEST(test_default_game_data_and_launcher_override);
     RUN_TEST(test_native_message_and_failures);
+    RUN_TEST(test_cpu_boost);
     TEST_SUMMARY();
     return test_failures ? 1 : 0;
 }

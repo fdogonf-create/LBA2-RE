@@ -20,6 +20,7 @@
 #include "FOLLOWCAM_CFG.H"
 #include "FOLLOWCAM_MATH.H"
 #include "JOYSTICK.H"
+#include "ANALOGMOVE.H" /* D-pad zoom and the right stick's response curve */
 #include "BOOT_EXIT.H"
 #include "MOUSE_CAPTURE.H"
 
@@ -2058,8 +2059,8 @@ static S32 ApplyManualCameraNudge(S32 dBeta, S32 dAlpha, S32 dZoom) {
 }
 
 /* Map a right-stick axis (SDL units, -32767..32767) to a per-frame camera step.
- * Per-axis deadzone reusing JoystickDeadzone, then a linear ramp to maxStep at
- * full deflection, scaled by sensitivity as a 10%-100% fraction (sens 10 = the
+ * Per-axis deadzone reusing JoystickDeadzone, then a ramp to maxStep at full
+ * deflection (linear, or squared with cam_stick_curve so small tilts are gentle), scaled by sensitivity as a 10%-100% fraction (sens 10 = the
  * full maxStep ceiling, sens 1 = a tenth of it). */
 static S32 StickAxisToCamStep(S16 axis, S32 sens, S32 maxStep) {
     S32 v = axis;
@@ -2069,8 +2070,9 @@ static S32 StickAxisToCamStep(S16 axis, S32 sens, S32 maxStep) {
     S32 den = 32767 - JoystickDeadzone;
     if (den < 1)
         den = 1;
-    S32 step = (mag - JoystickDeadzone) * maxStep / den; /* 0..maxStep */
-    step = step * sens / 10;                             /* sens 1-10 -> 10%-100% */
+    S32 travel = (mag - JoystickDeadzone) * 1024 / den;                   /* 0..1024 */
+    S32 step = AnalogMove_CurveStep(maxStep, travel, GamepadCameraCurve); /* 0..maxStep */
+    step = step * sens / 10;                                              /* sens 1-10 -> 10%-100% */
     return (v < 0) ? -step : step;
 }
 #endif
@@ -2468,6 +2470,14 @@ S32 GereExtKeys(U32 key)
                 dAlpha = -dAlpha;
             if (dBeta != 0 OR dAlpha != 0)
                 flag |= ApplyManualCameraNudge(dBeta, dAlpha, 0);
+        }
+
+        /* D-pad zoom, for a pad with no other way to reach it. The distance it
+         * leaves is the arm length the follow keeps until it is changed again. */
+        {
+            S32 dpadZoom = AnalogMove_DpadZoom();
+            if (dpadZoom != 0)
+                flag |= ApplyManualCameraNudge(0, 0, dpadZoom);
         }
 
         /* Console `camnudge`: stand in for the stick/mouse so a headless run can

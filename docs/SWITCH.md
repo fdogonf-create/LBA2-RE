@@ -19,7 +19,7 @@ Outputs:
 | Path | Contents |
 |------|----------|
 | `out/lba2cc-switch.zip` | SD-card installation tree, README and license; no retail assets |
-| `out/switch/switch/lba2cc/lba2cc.nro` | Homebrew executable with NACP metadata and devkitPro's default icon |
+| `out/switch/switch/lba2cc/lba2cc.nro` | Homebrew executable with NACP metadata and the icon from `packaging/switch/icon.jpg` |
 | `out/switch/debug/lba2cc.elf` | Unstripped, matching executable for debugging; not needed on the SD card |
 
 The NACP display version comes directly from the root `VERSION` file, including patch and prerelease components, rather than an independent console version. Changing that file refreshes package metadata on the next build. Versions longer than the NACP field's 15-byte limit fail configuration rather than truncate.
@@ -79,7 +79,7 @@ Switch-specific code stays in the [SDL2 backend](../LIB386/PLATFORM/SDL2/). The 
 
 Presentation uses SDL2's GLES2 renderer to scale the existing indexed software framebuffer with letterboxing. The logical render resolution stays unchanged; the native window starts at handheld or docked dimensions, and the SDL2 Switch driver handles dock transitions. The backend advertises fullscreen-only operation and does not resize the physical output when changing framebuffer resolution.
 
-SDL2 owns controller enumeration, native event pumping and audio output. The platform entry registers shutdown with `atexit`, covering both returns and the game's existing `exit()` paths. There is no new controller mapping, touchscreen overlay, custom-name keyboard, controller-disconnect pause policy or clock-speed override. Save creation retains the existing non-keyboard automatic-name path.
+SDL2 owns controller enumeration, native event pumping and audio output. The platform entry registers shutdown with `atexit`, covering both returns and the game's existing `exit()` paths. There is no touchscreen overlay, custom-name keyboard or controller-disconnect pause policy. The entry asks the system for its CPU boost mode (`SDL2_SwitchSetCpuBoost`, 1785 MHz instead of 1020 MHz) for the whole session, because the outdoor scenes are drawn in software and the Auto camera redraws the whole scene every frame; a refusal is logged and the game runs at the stock clock. The Switch preset turns on `LBA2_MODERN_GAMEPAD`, so a fresh install starts with analog movement, the Auto camera, D-pad zoom and the ZL behaviour cycle (see [CONTROLLER.md](CONTROLLER.md#analog-movement)). It also sets `LBA2_DEFAULT_LANGUAGE` to 3, so the text starts in Spanish unless the player's own config names a language; the config beside the game data, written by whatever installed it, does not hold it to English. Save creation retains the existing non-keyboard automatic-name path.
 
 ## Validation
 
