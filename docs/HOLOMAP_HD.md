@@ -22,3 +22,7 @@ The SDL2 backend ([WINDOW.CPP](../LIB386/PLATFORM/SDL2/WINDOW.CPP), `ApplyBackdr
 ## The globe's surface
 
 The globes are 3D meshes wrapped in an indexed texture 256 texels wide (holomap.hqr entries 2, 4, 6, 8 and 9; Twinsun is entry 2), drawn by the software polygon filler, which only reads 256-wide textures. [scripts/holomap_export.py](../scripts/holomap_export.py) also saves them as `hologlobe_<entry>.png`. A picture of the same name in the `hd` folder replaces one when the holomap opens (`HoloHD_ReplaceTexture`): it is scaled to the texture's size and each pixel becomes the nearest of the colours the original texture uses, so it can fix or restyle the surface but not add detail.
+
+## Tester switch (temporary)
+
+While a file named `tester_holomapa.txt` sits beside the game data (`sdmc:/lba2/` on the Switch), `HoloMap` marks every real arrow (one on an island with a position) as found for as long as the holomap is open, so every island's map and places can be checked. The saved record is put back when the holomap closes. It is meant to be removed once the redrawn maps are checked.
