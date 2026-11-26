@@ -69,9 +69,9 @@ static U32 DiscCoverage(double d, double radius) {
     return (U32)(c * 255.0);
 }
 
-/* Bilinear sample of the icon at (u, v) in icon pixels, premultiplied: the
+/* Bilinear sample of `icon` at (u, v) in icon pixels, premultiplied: the
  * colour channels come back already multiplied by the alpha. */
-static void SampleIcon(double u, double v, U32 *r, U32 *g, U32 *b, U32 *a) {
+static void SampleIcon(const U32 *icon, double u, double v, U32 *r, U32 *g, U32 *b, U32 *a) {
     S32 x0 = (S32)floor(u - 0.5), y0 = (S32)floor(v - 0.5);
     double fx = (u - 0.5) - x0, fy = (v - 0.5) - y0;
     double acc[4] = {0, 0, 0, 0};
@@ -84,7 +84,7 @@ static void SampleIcon(double u, double v, U32 *r, U32 *g, U32 *b, U32 *a) {
 
         if (x < 0 OR y < 0 OR x >= ACTION_HINT_ICON_W OR y >= ACTION_HINT_ICON_H)
             continue;
-        c = kActionHintIcon[y * ACTION_HINT_ICON_W + x];
+        c = icon[y * ACTION_HINT_ICON_W + x];
         ca = c >> 24;
         acc[0] += wgt * ((c >> 16) & 0xFF) * ca / 255.0;
         acc[1] += wgt * ((c >> 8) & 0xFF) * ca / 255.0;
@@ -97,22 +97,88 @@ static void SampleIcon(double u, double v, U32 *r, U32 *g, U32 *b, U32 *a) {
     *a = (U32)(acc[3] + 0.5);
 }
 
+/* `icon` scaled to `size` pixels square, centred on (cx, cy). */
+static void DrawIcon(U32 *frameBuffer, S32 pitchPixels, S32 width, S32 height, const U32 *icon, S32 cx, S32 cy,
+                     S32 size) {
+    double scale = (double)ACTION_HINT_ICON_W / size;
+    S32 x0 = cx - size / 2;
+    S32 y0 = cy - size / 2;
+    S32 x, y;
+
+    for (y = 0; y < size; y++) {
+        S32 py = y0 + y;
+        if (py < 0 OR py >= height)
+            continue;
+        for (x = 0; x < size; x++) {
+            S32 px = x0 + x;
+            U32 r, g, b, a, *pixel, ia;
+
+            if (px < 0 OR px >= width)
+                continue;
+            SampleIcon(icon, (x + 0.5) * scale, (y + 0.5) * scale, &r, &g, &b, &a);
+            if (!a)
+                continue;
+            pixel = &frameBuffer[py * pitchPixels + px];
+            if (a > 255)
+                a = 255;
+            ia = 255 - a;
+            r += ((*pixel >> 16) & 0xFF) * ia / 255;
+            g += ((*pixel >> 8) & 0xFF) * ia / 255;
+            b += (*pixel & 0xFF) * ia / 255;
+            *pixel = 0xFF000000u | ((r > 255 ? 255 : r) << 16) | ((g > 255 ? 255 : g) << 8) | (b > 255 ? 255 : b);
+        }
+    }
+}
+
+static T_ACTION_HINT_PROMPT s_prompts[ACTION_HINT_MAX_PROMPTS];
+static S32 s_promptCount = 0;
+
+void ActionHint_SetPrompts(const T_ACTION_HINT_PROMPT *prompts, S32 count) {
+    S32 n;
+    if (count > ACTION_HINT_MAX_PROMPTS)
+        count = ACTION_HINT_MAX_PROMPTS;
+    for (n = 0; n < count; n++)
+        s_prompts[n] = prompts[n];
+    s_promptCount = count < 0 ? 0 : count;
+}
+
+static const U32 *PromptIcon(S32 which) {
+    switch (which) {
+    case ACTION_HINT_ICON_BUTTON_B:
+        return kIconB;
+    case ACTION_HINT_ICON_DPAD_H:
+        return kIconDPAD_H;
+    default:
+        return kIconA;
+    }
+}
+
 void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const U8 *palette_rgb) {
     S32 pitchPixels;
     S32 radius;
     S32 halo;
     S32 cx, cy;
     S32 x, y;
-    S32 size, x0, y0;
-    double scale;
+    S32 n;
 
     (void)palette_rgb;
     if (frameBuffer == NULL OR width == 0 OR height == 0)
         return;
+    pitchPixels = (S32)(pitch / sizeof(U32));
+
+    /* Button prompts a menu asked for, placed in its own canvas units. */
+    for (n = 0; n < s_promptCount; n++) {
+        const T_ACTION_HINT_PROMPT *pr = &s_prompts[n];
+        if (pr->canvasW <= 0 OR pr->canvasH <= 0)
+            continue;
+        DrawIcon(frameBuffer, pitchPixels, (S32)width, (S32)height, PromptIcon(pr->icon),
+                 (S32)((S64)pr->x * (S32)width / pr->canvasW), (S32)((S64)pr->y * (S32)height / pr->canvasH),
+                 (S32)((S64)pr->size * (S32)height / pr->canvasH));
+    }
+
     if (!ActionHint_Visible((U32)g_platform.system.ticks_ms()))
         return;
 
-    pitchPixels = (S32)(pitch / sizeof(U32));
     radius = (S32)height / 30;
     if (radius < 7)
         radius = 7;
@@ -120,8 +186,7 @@ void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const
     cx = (S32)width - halo - (S32)height / 40 - 1;
     cy = halo + (S32)height / 40;
 
-    /* A faint white disc behind the button, so it stands out on dark
-     * scenery, and white inside it for the letter. */
+    /* A faint white disc behind the button, so it stands out on dark scenery. */
     for (y = cy - halo - 1; y <= cy + halo + 1; y++) {
         if (y < 0 OR y >= (S32)height)
             continue;
@@ -135,40 +200,10 @@ void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const
             a = DiscCoverage(d, halo) * 70 / 255;
             if (a)
                 Blend(&frameBuffer[y * pitchPixels + x], 255, 255, 255, a);
-            /* The icon's letter is cut out of its disc: fill the disc white
-             * underneath so the letter reads white on any scenery. */
-            a = DiscCoverage(d, radius - 1) * 235 / 255;
-            if (a)
-                Blend(&frameBuffer[y * pitchPixels + x], 255, 255, 255, a);
         }
     }
 
     /* The button itself, scaled so the drawn disc of the icon is `radius`. */
-    size = radius * 2 * ACTION_HINT_ICON_W / ACTION_HINT_ICON_DISC;
-    scale = (double)ACTION_HINT_ICON_W / size;
-    x0 = cx - size / 2;
-    y0 = cy - size / 2;
-    for (y = 0; y < size; y++) {
-        S32 py = y0 + y;
-        if (py < 0 OR py >= (S32)height)
-            continue;
-        for (x = 0; x < size; x++) {
-            S32 px = x0 + x;
-            U32 r, g, b, a, *pixel, ia;
-
-            if (px < 0 OR px >= (S32)width)
-                continue;
-            SampleIcon((x + 0.5) * scale, (y + 0.5) * scale, &r, &g, &b, &a);
-            if (!a)
-                continue;
-            pixel = &frameBuffer[py * pitchPixels + px];
-            if (a > 255)
-                a = 255;
-            ia = 255 - a;
-            r += ((*pixel >> 16) & 0xFF) * ia / 255;
-            g += ((*pixel >> 8) & 0xFF) * ia / 255;
-            b += (*pixel & 0xFF) * ia / 255;
-            *pixel = 0xFF000000u | ((r > 255 ? 255 : r) << 16) | ((g > 255 ? 255 : g) << 8) | (b > 255 ? 255 : b);
-        }
-    }
+    DrawIcon(frameBuffer, pitchPixels, (S32)width, (S32)height, kIconA, cx, cy,
+             radius * 2 * ACTION_HINT_ICON_W / ACTION_HINT_ICON_DISC);
 }

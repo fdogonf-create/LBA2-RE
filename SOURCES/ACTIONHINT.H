@@ -41,6 +41,23 @@ extern void ActionHint_Note(U32 nowMs);
 /* Whether the hint is up at `nowMs`. */
 extern S32 ActionHint_Visible(U32 nowMs);
 
+/* Button icons a menu wants shown beside its own text (the quick item menu's
+ * "use" and "back"), drawn by the same overlay. Positions are in the menu's
+ * canvas (canvasW x canvasH, the game's render size), so the overlay can scale
+ * them to the presented frame. SetPrompts(NULL, 0) takes them away. */
+#define ACTION_HINT_MAX_PROMPTS 4
+#define ACTION_HINT_ICON_BUTTON_A 0
+#define ACTION_HINT_ICON_BUTTON_B 1
+#define ACTION_HINT_ICON_DPAD_H 2
+typedef struct {
+    S32 icon;
+    S32 x, y;    /* centre */
+    S32 size;    /* height */
+    S32 canvasW; /* the canvas x and y are in */
+    S32 canvasH;
+} T_ACTION_HINT_PROMPT;
+extern void ActionHint_SetPrompts(const T_ACTION_HINT_PROMPT *prompts, S32 count);
+
 /* Draw it onto the presented ARGB frame (the PrePresent signature). */
 extern void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const U8 *palette_rgb);
 

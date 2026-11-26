@@ -4,7 +4,8 @@
 #include "DIRECTORIES.H"
 #include "INPUT.H"
 #include "MENU_INPUT.H"
-#include "RETAILFIX.H" /* RetailFix_On (DoFoundObj) */
+#include "ACTIONHINT.H" /* the quick item menu's button icons */
+#include "RETAILFIX.H"  /* RetailFix_On (DoFoundObj) */
 #include "IMAGE_LOAD.H"
 #include "UI_LAYOUT.H" /* UI_VCENTER_OFS */
 
@@ -1412,16 +1413,20 @@ void MenuInventory(U32 tempo) {
 
 /*──────────────────────────────────────────────────────────────────────────*/
 /* Quick item menu (a Switch-build addition, opened by R): the objects and
- * spells Twinsen can use now, in a row across the middle of the scene, drawn
- * with the inventory's own boxes, frames and turning 3D objects. Left and right
- * (stick or D-pad) move along it, the name of the one in the middle shows
- * underneath, A uses it as the inventory would, and B or R closes it. It sets
- * InventoryAction exactly as MenuInventory does, so the caller's handling of
- * the chosen object is shared. */
-#define QUICK_INV_VISIBLE 5 /* boxes on screen at once, the chosen one in the middle */
-#define QUICK_INV_GAP 12    /* between two boxes */
-#define QUICK_INV_GROW 8    /* how much bigger the chosen box is, each side */
-#define QUICK_INV_Y_RAW 300 /* middle of the row on the authored 480 canvas */
+ * spells Twinsen can use now, in a row across the dimmed scene, drawn with the
+ * inventory's own boxes, frames and turning 3D objects. The chosen one sits in
+ * the middle, larger, in a bright frame with an arrow either side; its name is
+ * written large underneath, and under that the buttons: the D-pad to choose, A
+ * to use, B to go back. Left and right (stick or D-pad) step one object per
+ * press and repeat when held. A uses the object as the inventory would, B or R
+ * closes. It sets InventoryAction exactly as MenuInventory does, so the
+ * caller's handling of the chosen object is shared. */
+#define QUICK_INV_VISIBLE 5        /* boxes on screen at once, the chosen one in the middle */
+#define QUICK_INV_GAP 18           /* between two boxes */
+#define QUICK_INV_GROW 14          /* how much bigger the chosen box is, each side */
+#define QUICK_INV_Y_RAW 250        /* middle of the row on the authored 480 canvas */
+#define QUICK_INV_REPEAT_FIRST 380 /* ms held before a direction repeats */
+#define QUICK_INV_REPEAT_NEXT 150  /* ms between repeats after that */
 
 static S32 QuickInvLast = -1; /* the object last chosen here, to start on it again */
 
@@ -1437,17 +1442,19 @@ static void DrawQuickBox(S32 x0, S32 y0, S32 x1, S32 y1, S32 numinv, S32 chosen)
     beta = TabInv[numinv].BetaObj;
     if (chosen)
         beta += TimerRefHR - TimerRot;
-    DrawObjInventory((x0 + x1) >> 1, (y0 + y1) >> 1, ptrobj, beta, chosen ? 240 : 200, 15000);
+    DrawObjInventory((x0 + x1) >> 1, (y0 + y1) >> 1, ptrobj, beta, chosen ? 260 : 200, 15000);
 
-    if (TabInv[numinv].FlagInv & FLAG_INV_FEWER) { // Fuel, etc.
+    if (TabInv[numinv].FlagInv & FLAG_INV_FEWER) { // how many: fuel, darts, keys...
         char string[10];
 #ifdef LBA_EDITOR
         strcpy(string, Itoa(ListVarGame[numinv].Value));
 #else
         strcpy(string, Itoa(ListVarGame[numinv]));
 #endif
+        ColorFont(BLACK);
+        Font(x1 - SizeFont(string) - 4, y1 - 29, string);
         ColorFont(LBAWHITE);
-        Font(x1 - SizeFont(string), y1 - 31, string);
+        Font(x1 - SizeFont(string) - 6, y1 - 31, string);
     }
     if (TabInv[numinv].FlagInv & FLAG_INV_VALUE)
         AffValueBar(x0, y0, x1, y1, TabInv[numinv].PtMagie);
@@ -1456,6 +1463,33 @@ static void DrawQuickBox(S32 x0, S32 y0, S32 x1, S32 y1, S32 numinv, S32 chosen)
         flags |= CADRE_RED;
     DrawCadre(x0, y0, x1, y1, flags);
     UnsetClip();
+
+    if (chosen) { // the bright frame round the chosen one
+        S32 n;
+        for (n = 2; n <= 3; n++) {
+            Line(x0 - n + 4, y0 - n, x1 + n - 4, y0 - n, LBAWHITE);
+            Line(x0 - n + 4, y1 + n, x1 + n - 4, y1 + n, LBAWHITE);
+            Line(x0 - n, y0 - n + 4, x0 - n, y1 + n - 4, LBAWHITE);
+            Line(x1 + n, y0 - n + 4, x1 + n, y1 + n - 4, LBAWHITE);
+        }
+    }
+}
+
+/* A small solid arrow pointing left (dir -1) or right (dir 1), its point at
+ * (x, y). */
+static void DrawQuickArrow(S32 x, S32 y, S32 dir) {
+    S32 n;
+    for (n = 0; n < 10; n++)
+        Line(x - dir * n, y - n, x - dir * n, y + n, LBAWHITE);
+}
+
+/* Text at its centre, with the inventory's drop shadow. */
+static void QuickText(S32 cx, S32 y, const char *text, S32 color) {
+    S32 x = cx - SizeFont((char *)text) / 2;
+    ColorFont(BLACK);
+    Font(x + 2, y + 3, (char *)text);
+    ColorFont(color);
+    Font(x, y, (char *)text);
 }
 
 void MenuQuickInventory(void) {
@@ -1463,11 +1497,16 @@ void MenuQuickInventory(void) {
     S32 count = 0;
     S32 sel = 0;
     S32 n;
-    S32 cx, cy, bx, by, bandX0, bandY0, bandX1, bandY1, nameY;
+    S32 cx, cy, bx, by, areaY0, areaY1, nameY, promptY;
     S32 memoalphalight, memobetalight;
     S32 flagproto = FALSE;
     S32 rHeld = TRUE; /* R opened it: it closes on a new press only */
     S32 done = FALSE;
+    U32 lastDir = 0;
+    U32 repeatAt = 0;
+    const char *useText = (Language == 3) ? "Usar" : "Use";
+    const char *backText = (Language == 3) ? "Volver" : "Back";
+    const char *chooseText = (Language == 3) ? "Elegir" : "Choose";
 
     InventoryAction = -1;
     InitTabIndir();
@@ -1526,37 +1565,33 @@ void MenuQuickInventory(void) {
     RepMask = 0xFFFF;
     DoTextureAnimation();
 
-    /* The band: the scene as it was, shaded where the row and the name go and
-     * framed as the inventory is, kept in BufSpeak to draw each frame over. */
     bx = INV_SIZEO_X;
     by = INV_SIZEO_Y;
     cx = (S32)ModeDesiredX / 2;
     cy = QUICK_INV_Y_RAW + INV_TOP_OFFSET;
-    bandX0 = cx - (QUICK_INV_VISIBLE * bx + (QUICK_INV_VISIBLE + 1) * QUICK_INV_GAP) / 2 - 24;
-    bandX1 = cx + (QUICK_INV_VISIBLE * bx + (QUICK_INV_VISIBLE + 1) * QUICK_INV_GAP) / 2 + 24;
-    bandY0 = cy - by / 2 - QUICK_INV_GROW - 10;
-    nameY = cy + by / 2 + QUICK_INV_GROW + 8;
-    bandY1 = nameY + 30;
+    areaY0 = cy - by / 2 - QUICK_INV_GROW - 6;
+    nameY = cy + by / 2 + QUICK_INV_GROW + 22;
+    promptY = nameY + 44;
+    areaY1 = promptY + 24;
 
+    /* The whole scene dimmed, kept in BufSpeak to draw each frame over. */
     CopyScreen(Screen, Log);
-    BackupAngles(bandX0, bandY0, bandX1, bandY1);
-    ShadeBoxBlk(bandX0 + 1, bandY0 + 1, bandX1 - 1, bandY1 - 1, SHADE_INVENT_LVL);
-    DrawCadre(bandX0, bandY0, bandX1, bandY1, ALL_ANGLES);
-    RestoreAngles(bandX0, bandY0, bandX1, bandY1);
+    ShadeBoxBlk(0, 0, (S32)ModeDesiredX - 1, (S32)ModeDesiredY - 1, SHADE_INVENT_LVL);
     CopyScreen(Log, BufSpeak);
+    CopyScreen(Log, Screen);
+    BoxStaticFullflip();
 
     TimerRot = TimerRefHR;
     InitWaitNoInput(I_RETURN | I_MENUS | I_INVENTORY);
     InitWaitNoKey();
 
     while (!done) {
-        U32 navigation;
-        S32 k;
+        U32 dir;
+        S32 k, step = 0;
 
         ManageTime();
         DoTextureAnimation();
         MyGetInput();
-        navigation = MenuInput_Get();
 
         if (MyKey == K_ESC OR(Input & (I_MENUS | I_INVENTORY)))
             break;
@@ -1567,14 +1602,21 @@ void MenuQuickInventory(void) {
             rHeld = FALSE;
         }
 
-        if (navigation & MENU_INPUT_LEFT) {
-            TabInv[items[sel]].BetaObj += TimerRefHR - TimerRot;
-            sel = (sel + count - 1) % count;
-            TimerRot = TimerRefHR;
+        /* One object per press; held, it waits, then repeats at a pace. */
+        dir = MenuInput_Held() & (MENU_INPUT_LEFT | MENU_INPUT_RIGHT);
+        if (dir == MENU_INPUT_LEFT OR dir == MENU_INPUT_RIGHT) {
+            if (dir != lastDir) {
+                step = 1;
+                repeatAt = TimerRefHR + QUICK_INV_REPEAT_FIRST;
+            } else if (TimerRefHR >= repeatAt) {
+                step = 1;
+                repeatAt = TimerRefHR + QUICK_INV_REPEAT_NEXT;
+            }
         }
-        if (navigation & MENU_INPUT_RIGHT) {
+        lastDir = dir;
+        if (step AND count > 1) {
             TabInv[items[sel]].BetaObj += TimerRefHR - TimerRot;
-            sel = (sel + 1) % count;
+            sel = (dir == MENU_INPUT_LEFT) ? (sel + count - 1) % count : (sel + 1) % count;
             TimerRot = TimerRefHR;
         }
 
@@ -1584,42 +1626,68 @@ void MenuQuickInventory(void) {
             done = TRUE;
         }
 
-        /* Every frame: the chosen object turns. */
-        CopyBlock(bandX0, bandY0, bandX1, bandY1, BufSpeak, bandX0, bandY0, Log);
-        for (k = -(QUICK_INV_VISIBLE / 2); k <= QUICK_INV_VISIBLE / 2; k++) {
-            S32 x0, y0, grow;
+        CopyBlock(0, areaY0, (S32)ModeDesiredX - 1, areaY1, BufSpeak, 0, areaY0, Log);
 
-            if (count < QUICK_INV_VISIBLE AND(k<-((count - 1) / 2) OR k> count / 2))
-                continue; /* fewer objects than boxes: no repeats */
-            grow = (k == 0) ? QUICK_INV_GROW : 0;
-            x0 = cx - bx / 2 + k * (bx + QUICK_INV_GAP) - grow;
-            y0 = cy - by / 2 - grow;
-            DrawQuickBox(x0, y0, x0 + bx + 2 * grow, y0 + by + 2 * grow, items[((sel + k) % count + count) % count],
-                         k == 0);
+        /* The neighbours first, the chosen one over them. */
+        for (k = QUICK_INV_VISIBLE / 2; k >= 1; k--) {
+            S32 side;
+            for (side = -1; side <= 1; side += 2) {
+                S32 off = side * k;
+                S32 x0;
+                if (count < QUICK_INV_VISIBLE AND(off<-((count - 1) / 2) OR off> count / 2))
+                    continue; /* fewer objects than boxes: no repeats */
+                x0 = cx - bx / 2 + off * (bx + QUICK_INV_GAP) + side * QUICK_INV_GROW;
+                DrawQuickBox(x0, cy - by / 2, x0 + bx, cy + by / 2, items[((sel + off) % count + count) % count],
+                             FALSE);
+            }
         }
+        DrawQuickBox(cx - bx / 2 - QUICK_INV_GROW, cy - by / 2 - QUICK_INV_GROW, cx + bx / 2 + QUICK_INV_GROW,
+                     cy + by / 2 + QUICK_INV_GROW, items[sel], TRUE);
 
-        if (count > 1) { // the way along the row
-            ColorFont(COUL_PERSO * 16 + 12);
-            Font(cx - bx / 2 - QUICK_INV_GROW - 18, cy - 10, "<");
-            Font(cx + bx / 2 + QUICK_INV_GROW + 6, cy - 10, ">");
+        if (count > 1) {
+            DrawQuickArrow(cx - bx / 2 - QUICK_INV_GROW - 16, cy, -1);
+            DrawQuickArrow(cx + bx / 2 + QUICK_INV_GROW + 16, cy, 1);
         }
 
         {
             S32 t = TabInv[items[sel]].TabObj3D[TabInv[items[sel]].IdObj3D];
-            S32 x;
-
             GetMultiText(100 + t, String);
-            x = cx - SizeFont(String) / 2;
-            ColorFont(BLACK);
-            Font(x + 2, nameY + 4, String);
-            ColorFont(COUL_PERSO * 16 + 12);
-            Font(x, nameY, String);
+            QuickText(cx, nameY, String, LBAWHITE);
         }
 
-        BoxStaticAdd(bandX0, bandY0, bandX1, bandY1);
+        /* The buttons, their icons drawn over the presented frame (ACTIONHINT). */
+        {
+            T_ACTION_HINT_PROMPT prompts[3];
+            S32 w0 = SizeFont((char *)chooseText), w1 = SizeFont((char *)useText), w2 = SizeFont((char *)backText);
+            S32 icon = 26, gap = 30;
+            S32 total = (icon + 6 + w0) + gap + (icon + 6 + w1) + gap + (icon + 6 + w2);
+            S32 x = cx - total / 2;
+            S32 p;
+            const S32 icons[3] = {ACTION_HINT_ICON_DPAD_H, ACTION_HINT_ICON_BUTTON_A, ACTION_HINT_ICON_BUTTON_B};
+            const char *texts[3] = {chooseText, useText, backText};
+
+            for (p = 0; p < 3; p++) {
+                prompts[p].icon = icons[p];
+                prompts[p].x = x + icon / 2;
+                prompts[p].y = promptY + 10;
+                prompts[p].size = icon;
+                prompts[p].canvasW = (S32)ModeDesiredX;
+                prompts[p].canvasH = (S32)ModeDesiredY;
+                x += icon + 6;
+                ColorFont(BLACK);
+                Font(x + 2, promptY + 3, (char *)texts[p]);
+                ColorFont(LBAWHITE);
+                Font(x, promptY, (char *)texts[p]);
+                x += SizeFont((char *)texts[p]) + gap;
+            }
+            ActionHint_SetPrompts(prompts, 3);
+        }
+
+        BoxStaticAdd(0, areaY0, (S32)ModeDesiredX - 1, areaY1);
         BoxUpdate();
     }
 
+    ActionHint_SetPrompts(NULL, 0);
     CloseDial();
 
     AlphaLight = memoalphalight;
