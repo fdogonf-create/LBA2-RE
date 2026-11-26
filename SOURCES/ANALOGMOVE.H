@@ -58,10 +58,20 @@ S32 AnalogMove_CurveStep(S32 step, S32 travel1024, S32 curved);
  * `*beta` toward the stick's direction (unless `canTurn` is 0, as mid-jump) and
  * replaces Input's movement bits with a step forward once he faces near enough.
  * `exterior` reads the stick against the 3D camera at yaw `betaCam`, otherwise
- * against the isometric view; `climbing` (on a ladder) leaves the frame to the
- * original controls; `cameraOrbiting` (the player turning the camera) takes the
- * camera's yaw again. */
-void AnalogMove_Apply(S32 *beta, S32 canTurn, S32 exterior, S32 climbing, S32 betaCam, S32 cameraOrbiting);
+ * against the isometric view; `cameraOrbiting` (the player turning the camera)
+ * takes the camera's yaw again. `onLadder` (climbing) reads the stick as up =
+ * climb, down = come down. `nearLadder` (in a ladder or window zone, not yet on
+ * it) moves him as usual, so walking into the wall starts the climb, but a stick
+ * held against his facing steps him backwards instead of turning him round, the
+ * way the original comes down a ladder from the top. */
+void AnalogMove_Apply(S32 *beta, S32 canTurn, S32 exterior, S32 onLadder, S32 nearLadder, S32 betaCam,
+                      S32 cameraOrbiting);
+
+/* The buggy's manual drive, before it reads Input: with the stick move on, ZR
+ * holds the accelerator (I_UP) and ZL the brake and reverse (I_DOWN); the left
+ * stick's left and right still steer. Outside the buggy ZR and ZL keep their
+ * usual jobs. */
+void AnalogMove_ApplyBuggy(void);
 
 /* Pure helpers (host-tested). Stick values are SDL axis units, Y+ = down. */
 

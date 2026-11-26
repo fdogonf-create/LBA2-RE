@@ -4082,7 +4082,8 @@ void DoDir(U8 numobj) {
             AnalogMove_Apply(&ptrobj->Obj.Beta,
                              !(Jumping & 1023) AND !(ptrobj->WorkFlags & ANIM_MASTER_ROT),
                              CubeMode == CUBE_EXTERIEUR,
-                             FlagClimbing OR PtrZoneClimb != NULL,
+                             FlagClimbing,
+                             PtrZoneClimb != NULL,
                              BetaCam,
                              ManualCameraOrbitActive);
         }
@@ -4561,6 +4562,9 @@ void DoDir(U8 numobj) {
 
         /*-------------------------------------------------------------------------*/
     case MOVE_BUGGY_MANUAL:
+        if (numobj == NUM_PERSO)
+            AnalogMove_ApplyBuggy();
+
         if ((Input & I_ACTION_M)
                 AND !(ptrobj->WorkFlags & ANIM_MASTER_GRAVITY)) {
             ActionNormal = 2; // Action Buggy pour en descendre

@@ -27,5 +27,7 @@ extern void MenuInput_SetReplaySample(S32 sample);
  * (the Switch build), where the left stick is the only other stick; elsewhere it
  * does nothing. */
 extern void MenuInput_UseRightStick(S32 on);
+/* TRUE while a menu has the right stick, so the camera gives up its share. */
+extern S32 MenuInput_RightStickOn(void);
 
 #endif

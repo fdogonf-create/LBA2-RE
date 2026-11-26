@@ -1571,8 +1571,9 @@ void MenuQuickInventory(void) {
     cy = QUICK_INV_Y_RAW + INV_TOP_OFFSET;
     areaY0 = cy - by / 2 - QUICK_INV_GROW - 6;
     nameY = cy + by / 2 + QUICK_INV_GROW + 22;
-    promptY = nameY + 44;
-    areaY1 = promptY + 24;
+    promptY = nameY + 42;
+    /* The game font is 38 lines tall, plus 3 for the shadow. */
+    areaY1 = promptY + 46;
 
     /* The whole scene dimmed, kept in BufSpeak to draw each frame over. */
     CopyScreen(Screen, Log);
@@ -1659,7 +1660,7 @@ void MenuQuickInventory(void) {
         {
             T_ACTION_HINT_PROMPT prompts[3];
             S32 w0 = SizeFont((char *)chooseText), w1 = SizeFont((char *)useText), w2 = SizeFont((char *)backText);
-            S32 icon = 26, gap = 30;
+            S32 icon = 24, gap = 28;
             S32 total = (icon + 6 + w0) + gap + (icon + 6 + w1) + gap + (icon + 6 + w2);
             S32 x = cx - total / 2;
             S32 p;
@@ -1669,7 +1670,7 @@ void MenuQuickInventory(void) {
             for (p = 0; p < 3; p++) {
                 prompts[p].icon = icons[p];
                 prompts[p].x = x + icon / 2;
-                prompts[p].y = promptY + 10;
+                prompts[p].y = promptY + 18;
                 prompts[p].size = icon;
                 prompts[p].canvasW = (S32)ModeDesiredX;
                 prompts[p].canvasH = (S32)ModeDesiredY;

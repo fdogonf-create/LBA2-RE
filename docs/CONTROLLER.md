@@ -23,8 +23,9 @@ on screen. The routine is `AnalogMove_Apply` in
 [SOURCES/ANALOGMOVE_MATH.CPP](../SOURCES/ANALOGMOVE_MATH.CPP) and host-tested.
 
 Only the left stick drives it. The keyboard, the D-pad and the triggers keep the
-original controls, and a stick at rest leaves the frame to them. Ladders keep the
-original up and down, vehicles keep their own controls, and a session replay
+original controls, and a stick at rest leaves the frame to them. On a ladder the
+stick's up and down climb and come down, vehicles keep their own controls (the
+buggy takes ZR and ZL as its pedals, see the Switch layout below), and a session replay
 ignores it, because a recording does not carry the stick's raw axes.
 
 | Key | Console | Default | Description |
@@ -58,6 +59,8 @@ A build with `LBA2_MODERN_PAD_DEFAULT` (the Switch preset) binds the pad by the 
 | − / + | Inventory / game menu | |
 | Left / right stick click | Dodge / Center camera | |
 | D-pad | Up / down zoom, left lightning, right penguin | Navigate |
+
+In the buggy (`MOVE_BUGGY_MANUAL`) ZR accelerates and ZL brakes and reverses (`AnalogMove_ApplyBuggy`), and the left stick steers; out of it they go back to the jobs above. On a ladder the stick's up and down climb and come down; standing at a ladder or a window you climb in through, walking into the wall starts the climb, and pulling the stick away steps him back instead of turning him round.
 
 In menus the Switch's A and B are remapped whatever they are bound to in play, and a button still held across the change waits for its release. The build writes `GamepadLayout: 2` beside the pad bindings; a cfg without it was written under an earlier layout, and its pad bindings give way to the defaults once.
 

@@ -17,6 +17,10 @@ void MenuInput_UseRightStick(S32 on) {
 #endif
 }
 
+S32 MenuInput_RightStickOn(void) {
+    return s_rightStick;
+}
+
 U32 MenuInput_Capture(S32 isolated, U32 reservedKey) {
     /* The last column is the right stick, read only while a menu asks for it. */
     static const U32 keys[MENU_INPUT_COUNT][5] = {
