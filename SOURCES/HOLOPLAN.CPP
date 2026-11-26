@@ -426,9 +426,23 @@ static const char *const s_islandNamesEn[MAX_ISLAND] = {
     "Otringal", "Celebration Island", "Island of the Wannies", "Island of the Mosquibees",
     "Knartas", "Island CX", "Elevator", "Under Celebration Island"};
 
+/* Whether holomap.hqr has a map for `island` (Sendell's well has none). */
+static S32 HoloPlanHasMap(S32 island) {
+    static S8 s_hasMap[MAX_ISLAND] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+    if (s_hasMap[island] < 0) {
+        char path[ADELINE_MAX_PATH];
+        GetResPath(path, ADELINE_MAX_PATH, HOLO_HQR_NAME);
+        s_hasMap[island] = (S8)(HQF_ResSize(path, HQR_BEGIN_MAP + 2 * island) >=
+                                IMAGE_AUTHORED_WIDTH * IMAGE_AUTHORED_HEIGHT);
+    }
+    return s_hasMap[island];
+}
+
 S32 HoloPlan_IslandKnown(S32 island) {
     S32 i;
     if (island < 0 OR island >= MAX_ISLAND)
+        return FALSE;
+    if (island != Island AND !HoloPlanHasMap(island))
         return FALSE;
     if (island == Island)
         return TRUE;

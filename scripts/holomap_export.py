@@ -25,6 +25,7 @@ Needs only Python 3, no extra packages:
 import os
 import struct
 import sys
+import time
 import zlib
 
 WIDTH, HEIGHT = 640, 480
@@ -116,8 +117,18 @@ def write_png(path, pixels, palette, width=WIDTH, height=HEIGHT):
     png += chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
     png += chunk(b"IDAT", zlib.compress(bytes(rows), 9))
     png += chunk(b"IEND", b"")
-    with open(path, "wb") as f:
-        f.write(png)
+    # Windows can refuse a file for a moment (antivirus, cloud sync, a viewer
+    # holding it): try again a few times before giving up on this one.
+    for attempt in range(6):
+        try:
+            with open(path, "wb") as f:
+                f.write(png)
+            return True
+        except OSError as error:
+            last = error
+            time.sleep(0.5)
+    print("could not write %s: %s" % (path, last))
+    return False
 
 
 def main():
@@ -138,14 +149,17 @@ def main():
             pixels = hqr_entry(holo, index)
         except IndexError:
             pixels = None
+        if header is None:
+            print("no map for %s in the game file (entry %d is empty)" % (NAMES[n], index))
+            continue
         if pixels is None or len(pixels) < WIDTH * HEIGHT:
             print("skipped entry %d (%s): not a 640x480 picture, header %s"
                   % (index, NAMES[n], header))
             continue
         path = os.path.join(out, "holomap_%d.png" % index)
-        write_png(path, pixels, palette)
-        print("%s  (%s)" % (path, NAMES[n]))
-        saved += 1
+        if write_png(path, pixels, palette):
+            print("%s  (%s)" % (path, NAMES[n]))
+            saved += 1
     if saved < MAP_COUNT:
         # Another release may keep the maps elsewhere: save every 640x480
         # picture in the file, named by its entry, so none is lost.
@@ -164,9 +178,9 @@ def main():
             if pixels is None:
                 continue
             path = os.path.join(out, "holomap_%d.png" % index)
-            write_png(path, pixels, palette)
-            print("%s  (extra picture found at entry %d)" % (path, index))
-            saved += 1
+            if write_png(path, pixels, palette):
+                print("%s  (extra picture found at entry %d)" % (path, index))
+                saved += 1
     print("%d maps saved in %s" % (saved, out))
 
     # The globes' surfaces: 256 texels wide, as tall as the entry allows.
@@ -180,8 +194,8 @@ def main():
             continue
         height = len(pixels) // 256
         path = os.path.join(out, "hologlobe_%d.png" % index)
-        write_png(path, pixels, palette, 256, height)
-        print("%s  (%s, 256x%d)" % (path, label, height))
+        if write_png(path, pixels, palette, 256, height):
+            print("%s  (%s, 256x%d)" % (path, label, height))
 
 if __name__ == "__main__":
     main()
