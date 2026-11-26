@@ -21,4 +21,11 @@ extern void HoloHD_SetView(S32 sx, S32 sy, S32 sw, S32 sh);
 /* Back to the indexed map alone. */
 extern void HoloHD_End(void);
 
+/* The globe's surface: a 256-texel-wide indexed texture (`size` bytes) from
+ * holomap.hqr entry `entry`. If hd/hologlobe_<entry>.png exists, it is scaled
+ * to the texture's size and each pixel replaced by the nearest of the colours
+ * the original texture uses (`palette`, 768 bytes), so the redrawn surface
+ * keeps working in the game's 256 colours. */
+extern void HoloHD_ReplaceTexture(S32 entry, U8 *texture, U32 size, const U8 *palette);
+
 #endif

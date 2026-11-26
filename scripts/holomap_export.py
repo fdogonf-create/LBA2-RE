@@ -9,6 +9,10 @@ one PNG per map, named the way the game looks for the redrawn ones:
     (the number is the picture's entry in holomap.hqr; the script prints
     which island each one is)
 
+It also saves the surfaces wrapped around the globes (hologlobe_2.png is
+Twinsun). Those stay 256 pixels wide in the game and are redrawn with the
+colours the original uses, so a redrawn one can be cleaner but not sharper.
+
 Put the redrawn pictures, same names, in a folder called `hd` next to the game
 data (on the Switch: sdmc:/lba2/hd/). Any 4:3 size works; keep every island
 in the same place and shape, because the game draws its arrows and Twinsen on
@@ -93,11 +97,15 @@ def hqr_entry(data, index):
     return expand_lz(body, size, method + 1)
 
 
-def write_png(path, pixels, palette):
+GLOBES = [(2, "Twinsun (the globe)"), (4, "Moon"), (6, "Zeelich"), (8, "Zeelich under the gas"),
+          (9, "Sun")]
+
+
+def write_png(path, pixels, palette, width=WIDTH, height=HEIGHT):
     rows = bytearray()
-    for y in range(HEIGHT):
+    for y in range(height):
         rows.append(0)
-        for i in pixels[y * WIDTH:(y + 1) * WIDTH]:
+        for i in pixels[y * width:(y + 1) * width]:
             rows += palette[i * 3:i * 3 + 3]
 
     def chunk(tag, payload):
@@ -105,7 +113,7 @@ def write_png(path, pixels, palette):
         return c + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
 
     png = b"\x89PNG\r\n\x1a\n"
-    png += chunk(b"IHDR", struct.pack(">IIBBBBB", WIDTH, HEIGHT, 8, 2, 0, 0, 0))
+    png += chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
     png += chunk(b"IDAT", zlib.compress(bytes(rows), 9))
     png += chunk(b"IEND", b"")
     with open(path, "wb") as f:
@@ -160,6 +168,20 @@ def main():
             print("%s  (extra picture found at entry %d)" % (path, index))
             saved += 1
     print("%d maps saved in %s" % (saved, out))
+
+    # The globes' surfaces: 256 texels wide, as tall as the entry allows.
+    for index, label in GLOBES:
+        try:
+            pixels = hqr_entry(holo, index)
+        except IndexError:
+            pixels = None
+        if pixels is None or len(pixels) < 256 * 16:
+            print("skipped surface %d (%s)" % (index, label))
+            continue
+        height = len(pixels) // 256
+        path = os.path.join(out, "hologlobe_%d.png" % index)
+        write_png(path, pixels, palette, 256, height)
+        print("%s  (%s, 256x%d)" % (path, label, height))
 
 if __name__ == "__main__":
     main()

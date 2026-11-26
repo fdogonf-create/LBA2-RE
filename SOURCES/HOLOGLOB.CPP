@@ -4,6 +4,7 @@
 
 #include "C_EXTERN.H" // include LBA2
 #include "DIRECTORIES.H"
+#include "HOLOHD.H"
 #include "INPUT.H"
 #include "MENU_INPUT.H"
 #include "UI_LAYOUT.H" /* UI_VCENTER_OFS */
@@ -859,6 +860,9 @@ void InitHoloGlobe(S32 planet) {
     PtrAlt = (U8 *)LoadHoloMalloc_HQR(tmpFilePath, id); // .HMT
 
     PtrTextMap = (U8 *)LoadHoloMalloc_HQR(tmpFilePath, id + 1); // .HMG
+    /* A redrawn surface in the hd folder, if there is one. */
+    if (PtrTextMap != NULL)
+        HoloHD_ReplaceTexture(id + 1, PtrTextMap, HQF_ResSize(tmpFilePath, id + 1), PtrPal);
 
     RayonPlanet = RAYON_PLANET;
 

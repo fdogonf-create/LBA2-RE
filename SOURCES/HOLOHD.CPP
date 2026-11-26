@@ -79,3 +79,62 @@ void HoloHD_Begin(S32 entry, S32 x0, S32 y0, const U8 *palette) {
     s_backdrop.serial = ++s_serial;
     LogPrintf("holomap: redrawn map %s (%dx%d)\n", path, (int)w, (int)h);
 }
+
+void HoloHD_ReplaceTexture(S32 entry, U8 *texture, U32 size, const U8 *palette) {
+    char name[64];
+    char path[ADELINE_MAX_PATH];
+    S32 w = 0, h = 0, x, y, i;
+    const S32 tw = 256;
+    const S32 th = (S32)(size / 256);
+    U8 used[256];
+    U8 *cache;
+    U32 *argb;
+
+    if (texture == NULL OR palette == NULL OR th <= 0)
+        return;
+    snprintf(name, sizeof(name), "hd/hologlobe_%d.png", (int)entry);
+    GetResPath(path, ADELINE_MAX_PATH, name);
+    argb = LoadPNG_ARGB(path, &w, &h);
+    if (argb == NULL)
+        return;
+    cache = (U8 *)malloc(32768 * 2); /* per 15-bit colour: found flag, index */
+    if (cache == NULL) {
+        FreePNG(argb);
+        return;
+    }
+    memset(cache, 0, 32768 * 2);
+    memset(used, 0, sizeof(used));
+    for (i = 0; i < tw * th; i++)
+        used[texture[i]] = 1;
+
+    for (y = 0; y < th; y++) {
+        const U32 *row = argb + (size_t)(y * h / th) * w;
+        for (x = 0; x < tw; x++) {
+            const U32 c = row[x * w / tw];
+            const S32 r = (S32)((c >> 16) & 0xFF), g = (S32)((c >> 8) & 0xFF), b = (S32)(c & 0xFF);
+            const S32 key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+            if (!cache[key * 2]) {
+                S32 best = 0, bestDist = 0x7FFFFFFF;
+                for (i = 0; i < 256; i++) {
+                    S32 dr, dg, db, dist;
+                    if (!used[i])
+                        continue;
+                    dr = (S32)palette[i * 3] - r;
+                    dg = (S32)palette[i * 3 + 1] - g;
+                    db = (S32)palette[i * 3 + 2] - b;
+                    dist = dr * dr * 3 + dg * dg * 4 + db * db * 2;
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        best = i;
+                    }
+                }
+                cache[key * 2] = 1;
+                cache[key * 2 + 1] = (U8)best;
+            }
+            texture[y * tw + x] = cache[key * 2 + 1];
+        }
+    }
+    free(cache);
+    FreePNG(argb);
+    LogPrintf("holomap: globe surface %d from %s (%dx%d)\n", (int)entry, path, (int)w, (int)h);
+}
