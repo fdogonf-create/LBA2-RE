@@ -42,6 +42,25 @@ D-pad's up and down unbound in the compiled and seeded pad layout, since they
 take the behaviour cycle and the zoom; the jetpack and the protection spell stay
 in the inventory. A cfg that already holds a key keeps its value.
 
+## Switch layout
+
+A build with `LBA2_MODERN_PAD_DEFAULT` (the Switch preset) binds the pad by the Nintendo labels. SDL names the face buttons by position, so in `INPUT_BINDINGS.CPP` the Switch's A is `K_GAMEPAD_B`, its B is `K_GAMEPAD_A`, its X is `K_GAMEPAD_Y` and its Y is `K_GAMEPAD_X`.
+
+| Button | In play | In menus |
+| --- | --- | --- |
+| A | Talk, search, open (`I_ACTION_ALWAYS`) | Confirm (`I_RETURN`) |
+| B | Throw the weapon (`I_THROW`) | Back (`I_MENUS`) |
+| X | The behaviour's action (`I_ACTION_M`) | |
+| Y | Holomap | |
+| L / ZL | Behaviour menu / next behaviour | |
+| R | Quick item menu (`MenuQuickInventory`, `pad_quick_menu`) | Closes it |
+| ZR | Protection spell | |
+| − / + | Inventory / game menu | |
+| Left / right stick click | Dodge / Center camera | |
+| D-pad | Up / down zoom, left lightning, right penguin | Navigate |
+
+In menus the Switch's A and B are remapped whatever they are bound to in play, and a button still held across the change waits for its release. The build writes `GamepadLayout: 2` beside the pad bindings; a cfg without it was written under an earlier layout, and its pad bindings give way to the defaults once.
+
 ## Manual camera (Auto camera mode)
 
 In exterior scenes with Auto camera (`FollowCamera`) on, the player can orbit,

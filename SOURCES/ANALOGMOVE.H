@@ -41,6 +41,10 @@ extern S32 GamepadCameraCurve;    /* 1 = right stick answers small tilts gently 
  * turns it into the next behaviour. Held, it does not repeat. */
 S32 AnalogMove_BehaviourCyclePressed(void);
 
+extern S32 GamepadQuickMenu; /* 1 = R opens the quick item menu */
+/* True on the frame R goes down with GamepadQuickMenu on. */
+S32 AnalogMove_QuickMenuPressed(void);
+
 /* The D-pad's zoom for this frame: positive in (up), negative out (down), 0
  * with the setting off or neither held. */
 S32 AnalogMove_DpadZoom(void);

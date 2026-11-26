@@ -22,7 +22,7 @@
 
 /* How close (world units) the object asking must be to Twinsen, and how far
  * off his facing (4096 a turn) it may stand. */
-#define ACTION_HINT_REACH 1500
+#define ACTION_HINT_REACH 2000
 #define ACTION_HINT_CONE 768
 /* How long a hint stays up after the last frame that asked for it, so it does
  * not flicker on scripts that ask every other frame, yet goes away as soon as a

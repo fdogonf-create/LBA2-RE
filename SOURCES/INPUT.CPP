@@ -136,8 +136,24 @@ void WriteInputConfig(void) {
 /* The pad's bindings. Its stick and camera preferences are settings rows in
    CONFIG_FILE.CPP, read just before this and written just before the writer
    below, so the cfg keeps its key order. */
+#if defined(LBA2_MODERN_PAD_DEFAULT) && LBA2_MODERN_PAD_DEFAULT
+/* The Switch layout this build writes beside its bindings. A file without it,
+   or with an older one, was written under an earlier layout, and its pad
+   bindings give way to this build's defaults once. */
+#define GAMEPAD_LAYOUT_MARKER "GamepadLayout"
+#define GAMEPAD_LAYOUT_VERSION 2
+#endif
+
 void ReadGamepadConfig(void) {
     char id[32];
+#ifdef GAMEPAD_LAYOUT_MARKER
+    if (DefFileBufferKeyOrigin(GAMEPAD_LAYOUT_MARKER) != DEFFILE_ORIGIN_OWNED || DefFileBufferReadValueDefault(GAMEPAD_LAYOUT_MARKER, 0) < GAMEPAD_LAYOUT_VERSION) {
+        for (S32 n = 0; n < MAX_INPUT_SLOTS; n++)
+            GamepadKeys[n] = GamepadKeysDefault[n];
+        InitInput();
+        return;
+    }
+#endif
     for (S32 n = 0; n < MAX_INPUT_SLOTS; n++) {
         snprintf(id, sizeof(id), "Gamepad%d", n);
         GamepadKeys[n].Key1 =
@@ -164,6 +180,9 @@ void WriteGamepadConfig(void) {
         snprintf(id, sizeof(id), "Gamepad%d_2", n);
         DefFileBufferWriteValue(id, GamepadKeys[n].Key2);
     }
+#ifdef GAMEPAD_LAYOUT_MARKER
+    DefFileBufferWriteValue(GAMEPAD_LAYOUT_MARKER, GAMEPAD_LAYOUT_VERSION);
+#endif
 }
 
 //-------------------------------------------------------------------------

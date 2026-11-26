@@ -91,8 +91,26 @@ void DoFuncLife(T_OBJET *ptrobj) {
         /* The script is asking whether the action button was pressed: if it
          * is the script of something near Twinsen and in front of him, the
          * button would do something now (ACTIONHINT.H). */
-        if (GamepadActionHint AND ptrobj != &ListObjet[NUM_PERSO] AND !CinemaMode AND ListObjet[NUM_PERSO].Move == MOVE_MANUAL AND ActionHint_InReach(ptrobj->Obj.X - ListObjet[NUM_PERSO].Obj.X, ptrobj->Obj.Z - ListObjet[NUM_PERSO].Obj.Z, ListObjet[NUM_PERSO].Obj.Beta))
-            ActionHint_Note((U32)g_platform.system.ticks_ms());
+        if (GamepadActionHint AND !CinemaMode AND ListObjet[NUM_PERSO].Move == MOVE_MANUAL) {
+            T_OBJET *hero = &ListObjet[NUM_PERSO];
+            S32 near = FALSE;
+
+            if (ptrobj != hero) {
+                near = ActionHint_InReach(ptrobj->Obj.X - hero->Obj.X, ptrobj->Obj.Z - hero->Obj.Z, hero->Obj.Beta);
+            } else {
+                /* Twinsen's own script asking: many a conversation is his, so
+                 * it counts with somebody drawn close in front of him. */
+                S32 o;
+                for (o = 0; o < NbObjets AND !near; o++) {
+                    T_OBJET *other = &ListObjet[o];
+                    if (other == hero OR other->Obj.Body.Num == -1 OR other->LifePoint <= 0)
+                        continue;
+                    near = ActionHint_InReach(other->Obj.X - hero->Obj.X, other->Obj.Z - hero->Obj.Z, hero->Obj.Beta);
+                }
+            }
+            if (near)
+                ActionHint_Note((U32)g_platform.system.ticks_ms());
+        }
         break;
 
         //---------------------------------------------------------------------------

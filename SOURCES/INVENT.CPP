@@ -1410,6 +1410,241 @@ void MenuInventory(U32 tempo) {
     MenuInput_UseRightStick(FALSE);
 }
 
+/*──────────────────────────────────────────────────────────────────────────*/
+/* Quick item menu (a Switch-build addition, opened by R): the objects and
+ * spells Twinsen can use now, in a row across the middle of the scene, drawn
+ * with the inventory's own boxes, frames and turning 3D objects. Left and right
+ * (stick or D-pad) move along it, the name of the one in the middle shows
+ * underneath, A uses it as the inventory would, and B or R closes it. It sets
+ * InventoryAction exactly as MenuInventory does, so the caller's handling of
+ * the chosen object is shared. */
+#define QUICK_INV_VISIBLE 5 /* boxes on screen at once, the chosen one in the middle */
+#define QUICK_INV_GAP 12    /* between two boxes */
+#define QUICK_INV_GROW 8    /* how much bigger the chosen box is, each side */
+#define QUICK_INV_Y_RAW 300 /* middle of the row on the authored 480 canvas */
+
+static S32 QuickInvLast = -1; /* the object last chosen here, to start on it again */
+
+static void DrawQuickBox(S32 x0, S32 y0, S32 x1, S32 y1, S32 numinv, S32 chosen) {
+    S16 *ptrobj;
+    S32 beta;
+    U32 flags = ALL_ANGLES | BACKUP_ANGLES;
+
+    SetClip(x0, y0, x1, y1);
+    DrawCadreBox(x0, y0, x1, y1, chosen ? COUL_SELECT_MENU : 0);
+
+    ptrobj = (S16 *)GivePtrObjFix(TabInv[numinv].TabObj3D[TabInv[numinv].IdObj3D]);
+    beta = TabInv[numinv].BetaObj;
+    if (chosen)
+        beta += TimerRefHR - TimerRot;
+    DrawObjInventory((x0 + x1) >> 1, (y0 + y1) >> 1, ptrobj, beta, chosen ? 240 : 200, 15000);
+
+    if (TabInv[numinv].FlagInv & FLAG_INV_FEWER) { // Fuel, etc.
+        char string[10];
+#ifdef LBA_EDITOR
+        strcpy(string, Itoa(ListVarGame[numinv].Value));
+#else
+        strcpy(string, Itoa(ListVarGame[numinv]));
+#endif
+        ColorFont(LBAWHITE);
+        Font(x1 - SizeFont(string), y1 - 31, string);
+    }
+    if (TabInv[numinv].FlagInv & FLAG_INV_VALUE)
+        AffValueBar(x0, y0, x1, y1, TabInv[numinv].PtMagie);
+
+    if (numinv == Weapon)
+        flags |= CADRE_RED;
+    DrawCadre(x0, y0, x1, y1, flags);
+    UnsetClip();
+}
+
+void MenuQuickInventory(void) {
+    S32 items[MAX_BOX_INVENTORY];
+    S32 count = 0;
+    S32 sel = 0;
+    S32 n;
+    S32 cx, cy, bx, by, bandX0, bandY0, bandX1, bandY1, nameY;
+    S32 memoalphalight, memobetalight;
+    S32 flagproto = FALSE;
+    S32 rHeld = TRUE; /* R opened it: it closes on a new press only */
+    S32 done = FALSE;
+
+    InventoryAction = -1;
+    InitTabIndir();
+
+    for (n = 0; n < MAX_BOX_INVENTORY; n++) {
+        S32 numinv = TabIndir[n];
+#ifdef LBA_EDITOR
+        if (ListVarGame[numinv].Value <= 0)
+#else
+        if (ListVarGame[numinv] <= 0)
+#endif
+            continue;
+        if (TabInv[numinv].FlagInv & FLAG_INV_UNUSABLE)
+            continue;
+        if (numinv == QuickInvLast)
+            sel = count;
+        items[count++] = numinv;
+    }
+    if (count == 0) {
+        PlayErrorSample();
+        RestoreTimer();
+        return;
+    }
+
+    MenuInput_UseRightStick(TRUE);
+    Palette(PtrPal);
+
+    if (Comportement == C_PROTOPACK OR Comportement == C_JETPACK) {
+#ifdef LBA_EDITOR
+        HQ_StopOneSample(NUM_SAMPLE(COMMON_NUM_DEF, SAMPLE_PROTOPACK));
+#else
+        HQ_StopOneSample(SAMPLE_PROTOPACK);
+#endif
+        ListObjet[NUM_PERSO].SampleAlways = 0;
+#ifdef LBA_EDITOR
+        if (!strcasecmp(ListObjet[NUM_PERSO].StringAnim, GEN_ANIM_MARCHE))
+#else
+        if (ListObjet[NUM_PERSO].GenAnim == GEN_ANIM_MARCHE)
+#endif
+        {
+            flagproto = TRUE;
+        }
+    }
+
+    MemoClipWindow();
+    UnsetClipWindow();
+    SetPosCamera(0, 0, 0);
+    SetAngleCamera(0, 0, 0);
+    SaveCamera();
+    memoalphalight = AlphaLight;
+    memobetalight = BetaLight;
+    SetLightVector(OBJ_ALPHA_LIGHT, OBJ_BETA_LIGHT, 0);
+
+    InitDial(2); // object names
+    PtrMap = ObjPtrMap = BufferTexture;
+    RepMask = 0xFFFF;
+    DoTextureAnimation();
+
+    /* The band: the scene as it was, shaded where the row and the name go and
+     * framed as the inventory is, kept in BufSpeak to draw each frame over. */
+    bx = INV_SIZEO_X;
+    by = INV_SIZEO_Y;
+    cx = (S32)ModeDesiredX / 2;
+    cy = QUICK_INV_Y_RAW + INV_TOP_OFFSET;
+    bandX0 = cx - (QUICK_INV_VISIBLE * bx + (QUICK_INV_VISIBLE + 1) * QUICK_INV_GAP) / 2 - 24;
+    bandX1 = cx + (QUICK_INV_VISIBLE * bx + (QUICK_INV_VISIBLE + 1) * QUICK_INV_GAP) / 2 + 24;
+    bandY0 = cy - by / 2 - QUICK_INV_GROW - 10;
+    nameY = cy + by / 2 + QUICK_INV_GROW + 8;
+    bandY1 = nameY + 30;
+
+    CopyScreen(Screen, Log);
+    BackupAngles(bandX0, bandY0, bandX1, bandY1);
+    ShadeBoxBlk(bandX0 + 1, bandY0 + 1, bandX1 - 1, bandY1 - 1, SHADE_INVENT_LVL);
+    DrawCadre(bandX0, bandY0, bandX1, bandY1, ALL_ANGLES);
+    RestoreAngles(bandX0, bandY0, bandX1, bandY1);
+    CopyScreen(Log, BufSpeak);
+
+    TimerRot = TimerRefHR;
+    InitWaitNoInput(I_RETURN | I_MENUS | I_INVENTORY);
+    InitWaitNoKey();
+
+    while (!done) {
+        U32 navigation;
+        S32 k;
+
+        ManageTime();
+        DoTextureAnimation();
+        MyGetInput();
+        navigation = MenuInput_Get();
+
+        if (MyKey == K_ESC OR(Input & (I_MENUS | I_INVENTORY)))
+            break;
+        if (CheckKey(K_GAMEPAD_RSHOULDER)) {
+            if (!rHeld)
+                break;
+        } else {
+            rHeld = FALSE;
+        }
+
+        if (navigation & MENU_INPUT_LEFT) {
+            TabInv[items[sel]].BetaObj += TimerRefHR - TimerRot;
+            sel = (sel + count - 1) % count;
+            TimerRot = TimerRefHR;
+        }
+        if (navigation & MENU_INPUT_RIGHT) {
+            TabInv[items[sel]].BetaObj += TimerRefHR - TimerRot;
+            sel = (sel + 1) % count;
+            TimerRot = TimerRefHR;
+        }
+
+        if (Input & I_RETURN) {
+            InventoryAction = items[sel];
+            QuickInvLast = items[sel];
+            done = TRUE;
+        }
+
+        /* Every frame: the chosen object turns. */
+        CopyBlock(bandX0, bandY0, bandX1, bandY1, BufSpeak, bandX0, bandY0, Log);
+        for (k = -(QUICK_INV_VISIBLE / 2); k <= QUICK_INV_VISIBLE / 2; k++) {
+            S32 x0, y0, grow;
+
+            if (count < QUICK_INV_VISIBLE AND(k<-((count - 1) / 2) OR k> count / 2))
+                continue; /* fewer objects than boxes: no repeats */
+            grow = (k == 0) ? QUICK_INV_GROW : 0;
+            x0 = cx - bx / 2 + k * (bx + QUICK_INV_GAP) - grow;
+            y0 = cy - by / 2 - grow;
+            DrawQuickBox(x0, y0, x0 + bx + 2 * grow, y0 + by + 2 * grow, items[((sel + k) % count + count) % count],
+                         k == 0);
+        }
+
+        if (count > 1) { // the way along the row
+            ColorFont(COUL_PERSO * 16 + 12);
+            Font(cx - bx / 2 - QUICK_INV_GROW - 18, cy - 10, "<");
+            Font(cx + bx / 2 + QUICK_INV_GROW + 6, cy - 10, ">");
+        }
+
+        {
+            S32 t = TabInv[items[sel]].TabObj3D[TabInv[items[sel]].IdObj3D];
+            S32 x;
+
+            GetMultiText(100 + t, String);
+            x = cx - SizeFont(String) / 2;
+            ColorFont(BLACK);
+            Font(x + 2, nameY + 4, String);
+            ColorFont(COUL_PERSO * 16 + 12);
+            Font(x, nameY, String);
+        }
+
+        BoxStaticAdd(bandX0, bandY0, bandX1, bandY1);
+        BoxUpdate();
+    }
+
+    CloseDial();
+
+    AlphaLight = memoalphalight;
+    BetaLight = memobetalight;
+    PtrInit3DView();
+    if (CubeMode == CUBE_INTERIEUR)
+        CameraCenter(0);
+    RestoreClipWindow();
+    RestoreCamera();
+    RestoreTimer();
+    InitDial(START_FILE_ISLAND + Island);
+    CheckProtoPack();
+
+    if (flagproto) {
+        InitAnim(GEN_ANIM_MARCHE, ANIM_REPEAT, NUM_PERSO);
+        ObjectSetFrame(&(ListObjet[NUM_PERSO].Obj), 5);
+        TimerProto = TimerRefHR + TEMPO_PROTO_AUTO; // 1/2 s
+    }
+
+    InitWaitNoInput(I_INVENTORY | I_RETURN | I_MENUS | I_ACTION | I_THROW);
+    InitWaitNoKey();
+    WaitNoMenuInput();
+    MenuInput_UseRightStick(FALSE);
+}
+
 /*══════════════════════════════════════════════════════════════════════════*
     █▀▀▀▀ █▀▀▀█ █   █ ██▄ █ █▀▀▀▄       █▀▀▀█ █▀▀█      █ █▀▀▀▀ █▀▀▀▀ ▀▀█▀▀
     ██▀▀  ██  █ ██  █ ██▀██ ██  █       ██  █ ██▀▀█ ▄▄  █ ██▀▀  ██      ██

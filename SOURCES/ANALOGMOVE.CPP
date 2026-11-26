@@ -17,6 +17,21 @@ S32 GamepadBehaviourCycle = LBA2_MODERN_PAD_DEFAULT;
 S32 GamepadCameraCurve = LBA2_MODERN_PAD_DEFAULT;
 
 static S32 s_cycleHeld = 0;
+S32 GamepadQuickMenu = LBA2_MODERN_PAD_DEFAULT;
+static S32 s_quickHeld = 0;
+
+S32 AnalogMove_QuickMenuPressed(void) {
+    S32 down;
+    S32 pressed;
+    if (!GamepadQuickMenu || !JoystickIsPresent() || Record_IsReplaying()) {
+        s_quickHeld = 0;
+        return 0;
+    }
+    down = CheckKey(K_GAMEPAD_RSHOULDER) ? 1 : 0;
+    pressed = down && !s_quickHeld;
+    s_quickHeld = down;
+    return pressed;
+}
 
 S32 AnalogMove_BehaviourCyclePressed(void) {
     S32 down;

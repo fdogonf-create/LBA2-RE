@@ -229,6 +229,8 @@ static const T_SETTING GamepadSettings[] = {
     {"GamepadActionHint", NULL, "pad_action_hint", &GamepadActionHint, SETTING_TRUTHY, LBA2_ACTION_HINT_DEFAULT, 0, 1,
      NULL, NULL, NULL, NULL, "Show a small A button while the action button would do something",
      SETTING_NOT_RECORDED, SETTING_BEFORE(0)},
+    {"GamepadQuickMenu", NULL, "pad_quick_menu", &GamepadQuickMenu, SETTING_TRUTHY, LBA2_MODERN_PAD_DEFAULT, 0, 1,
+     NULL, NULL, NULL, NULL, "R opens a quick row of the objects Twinsen can use", SETTING_RECORDED, SETTING_BEFORE(0)},
     {"GamepadBehaviourCycle", NULL, "pad_cycle_behaviour", &GamepadBehaviourCycle, SETTING_TRUTHY,
      LBA2_MODERN_PAD_DEFAULT, 0, 1, NULL, NULL, NULL, NULL, "A tap of ZL steps to the next behaviour",
      SETTING_RECORDED, SETTING_BEFORE(0)},

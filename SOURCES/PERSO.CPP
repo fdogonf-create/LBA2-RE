@@ -1188,7 +1188,8 @@ restartloop:
                 }
             }
 
-            if ((Input & I_INVENTORY)
+            S32 quickMenu = AnalogMove_QuickMenuPressed();
+            if ((Input & I_INVENTORY OR quickMenu)
                     AND(PtrComportement->Flags & CF_INVENTORY)
                         AND(ptrobj->Obj.Body.Num != -1)
                             AND !(ptrobj->WorkFlags & SKATING)
@@ -1196,7 +1197,10 @@ restartloop:
                 SaveTimer();
                 StopSpeak();
                 BackupScreen(TRUE);
-                MenuInventory(0);
+                if (quickMenu AND !(Input & I_INVENTORY))
+                    MenuQuickInventory(); /* R: the row of usable objects */
+                else
+                    MenuInventory(0);
 
                 switch (InventoryAction) {
                 case FLAG_HOLOMAP: // holomap
