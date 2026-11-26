@@ -92,6 +92,15 @@ typedef struct PlatformFrame {
     PlatformOverlayFn overlay;
 } PlatformFrame;
 
+/* A full-colour image (0xAARRGGBB, byte pitch) drawn into a rectangle of the
+   framebuffer, in framebuffer pixels; everything outside it is black. Pixels
+   are borrowed for this call only. */
+typedef struct PlatformRgbFrame {
+    const uint32_t *pixels;
+    uint32_t width, height, pitch;
+    int32_t dst_x, dst_y, dst_w, dst_h;
+} PlatformRgbFrame;
+
 typedef struct PlatformGamepad PlatformGamepad;
 typedef struct PlatformFolderDialog PlatformFolderDialog;
 
@@ -179,6 +188,8 @@ typedef struct PlatformWindow {
        is unfocused and puts it back on focus, as it does relative mode. */
     void (*set_mouse_grab)(bool enabled);
     bool (*present)(const PlatformFrame *frame);
+    /* Optional: NULL on a backend that can only show indexed frames. */
+    bool (*present_rgb)(const PlatformRgbFrame *frame);
 } PlatformWindow;
 
 typedef struct PlatformInput {

@@ -11,6 +11,9 @@ const char *s_title = NULL;
 SDL_Window *s_window = NULL;
 SDL_Renderer *s_renderer = NULL;
 SDL_Texture *s_texture = NULL;
+SDL_Texture *s_rgbTexture = NULL; /* full-colour frames, sized to the source */
+uint32_t s_rgbWidth = 0;
+uint32_t s_rgbHeight = 0;
 uint32_t s_width = 0;
 uint32_t s_height = 0;
 bool s_fullscreen = false;
@@ -281,6 +284,11 @@ void SDL3_DestroyWindow(void) {
         SDL_DestroyTexture(s_texture);
         s_texture = NULL;
     }
+    if (s_rgbTexture) {
+        SDL_DestroyTexture(s_rgbTexture);
+        s_rgbTexture = NULL;
+        s_rgbWidth = s_rgbHeight = 0;
+    }
     if (s_renderer) {
         SDL_DestroyRenderer(s_renderer);
         s_renderer = NULL;
@@ -433,4 +441,42 @@ bool SDL3_Present(const PlatformFrame *frame) {
 #endif
     return converted && PresentTexture();
 }
+}
+
+/* The rectangle is in framebuffer pixels, which are the renderer's logical
+   coordinates (SetLogicalPresentation), so SDL letterboxes it with the rest. */
+bool SDL3_PresentRgb(const PlatformRgbFrame *frame) {
+    if (frame == NULL || frame->pixels == NULL || frame->width == 0 || frame->height == 0 ||
+        s_renderer == NULL) {
+        SDL_SetError("Invalid full-colour frame");
+        Platform_Log(PLATFORM_LOG_ERROR, "%s", SDL_GetError());
+        return false;
+    }
+    if (s_rgbTexture == NULL || s_rgbWidth != frame->width || s_rgbHeight != frame->height) {
+        if (s_rgbTexture)
+            SDL_DestroyTexture(s_rgbTexture);
+        s_rgbTexture = SDL_CreateTexture(s_renderer, SDL_PIXELFORMAT_ARGB8888,
+                                         SDL_TEXTUREACCESS_STREAMING, (int)frame->width,
+                                         (int)frame->height);
+        if (s_rgbTexture == NULL) {
+            s_rgbWidth = s_rgbHeight = 0;
+            Platform_Log(PLATFORM_LOG_ERROR, "Unable to create full-colour texture: %s", SDL_GetError());
+            return false;
+        }
+        SDL_SetTextureScaleMode(s_rgbTexture, SDL_SCALEMODE_LINEAR);
+        s_rgbWidth = frame->width;
+        s_rgbHeight = frame->height;
+    }
+    if (!SDL_UpdateTexture(s_rgbTexture, NULL, frame->pixels, (int)frame->pitch)) {
+        Platform_Log(PLATFORM_LOG_ERROR, "Unable to upload full-colour frame: %s", SDL_GetError());
+        return false;
+    }
+    const SDL_FRect dst = {(float)frame->dst_x, (float)frame->dst_y, (float)frame->dst_w,
+                           (float)frame->dst_h};
+    if (!SDL_SetRenderDrawColor(s_renderer, 0, 0, 0, 255) || !SDL_RenderClear(s_renderer) ||
+        !SDL_RenderTexture(s_renderer, s_rgbTexture, NULL, &dst) || !SDL_RenderPresent(s_renderer)) {
+        Platform_Log(PLATFORM_LOG_ERROR, "Unable to present full-colour frame: %s", SDL_GetError());
+        return false;
+    }
+    return true;
 }

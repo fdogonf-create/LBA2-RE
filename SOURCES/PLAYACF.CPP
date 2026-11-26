@@ -41,8 +41,10 @@ int VideoLogIsEnabled(void) {
 #include <SYSTEM/TIMER.H>
 #include <PLATFORM/PLATFORM.H>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "CONSOLE/CONSOLE.H"
+#include <pl_mpeg.h>
 #endif
 
 char PathAcf[ADELINE_MAX_PATH];
@@ -371,6 +373,225 @@ static void PushCurrentFrameVideoAudio(smk smkObject, const int *tracksToPlay, i
     }
     PushVideoAudio(mixBuf, (U32)maxSize);
 }
+
+/* ── Full-colour replacement cinematics ─────────────────────────────────────
+   A movie may be replaced by an MPEG-1 program stream (mpeg1video + mp2) at
+   video/hd/<name>.mpg, or video/hd/<name>_<voice>.mpg to follow the voice
+   language (en, fr, de, sp, it, po). The file carries its own mixed audio.
+   Without such a file, or on a backend that cannot show full-colour frames,
+   the original Smacker movie plays. */
+
+static bool FindHdMovie(const char *name, char *outPath, U16 outSize) {
+    static const char *const kVoiceSuffix[] = {"en", "fr", "de", "sp", "it", "po"};
+    char base[32];
+    size_t len = 0;
+    while (name[len] && name[len] != '.' && len < sizeof(base) - 1) {
+        char c = name[len];
+        base[len] = (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
+        len++;
+    }
+    base[len] = '\0';
+    char file[64];
+    if (LanguageCD >= 0 && LanguageCD < (S32)(sizeof(kVoiceSuffix) / sizeof(kVoiceSuffix[0]))) {
+        snprintf(file, sizeof(file), "hd" ADELINE_PATH_SEP "%s_%s.mpg", base, kVoiceSuffix[LanguageCD]);
+        GetMoviePath(outPath, outSize, file);
+        if (ExistsFileOrDir(outPath))
+            return true;
+    }
+    snprintf(file, sizeof(file), "hd" ADELINE_PATH_SEP "%s.mpg", base);
+    GetMoviePath(outPath, outSize, file);
+    return ExistsFileOrDir(outPath);
+}
+
+/* Decode audio until it runs `lead` seconds past `until`. Returns false once
+   the stream has no more audio. */
+static bool PushHdAudio(plm_t *plm, double until, double lead, double *audioTime) {
+    static S16 pcm[PLM_AUDIO_SAMPLES_PER_FRAME * 2];
+    while (*audioTime < until + lead) {
+        plm_samples_t *samples = plm_decode_audio(plm);
+        if (!samples)
+            return false;
+        for (unsigned int i = 0; i < samples->count * 2; i++) {
+            float v = samples->interleaved[i] * 32767.0f;
+            if (v > 32767.0f)
+                v = 32767.0f;
+            if (v < -32768.0f)
+                v = -32768.0f;
+            pcm[i] = (S16)v;
+        }
+        PushVideoAudio(pcm, (U32)(samples->count * 2 * sizeof(S16)));
+        *audioTime = samples->time + (double)samples->count / (double)plm_get_samplerate(plm);
+    }
+    return true;
+}
+
+static void PresentHd(U32 *rgb, int w, int h, S32 dstX, S32 dstY, S32 dstW, S32 dstH) {
+    PlatformRgbFrame frame;
+    frame.pixels = rgb;
+    frame.width = (uint32_t)w;
+    frame.height = (uint32_t)h;
+    frame.pitch = (uint32_t)w * 4u;
+    frame.dst_x = dstX;
+    frame.dst_y = dstY;
+    frame.dst_w = dstW;
+    frame.dst_h = dstH;
+    g_platform.window.present_rgb(&frame);
+}
+
+/* Play the replacement for `name` if there is one. Returns false, having
+   touched nothing, when the original should play instead. */
+static bool PlayHdMovie(const char *name, S32 *outKey) {
+    char path[ADELINE_MAX_PATH];
+    if (!g_platform.window.present_rgb || !FindHdMovie(name, path, ADELINE_MAX_PATH))
+        return false;
+
+    plm_t *plm = plm_create_with_filename(path);
+    if (!plm)
+        return false;
+    if (!plm_has_headers(plm) || plm_get_num_video_streams(plm) < 1) {
+        Log_Warn("Video '%s': %s is not an MPEG-1 movie, playing the original", name, path);
+        plm_destroy(plm);
+        return false;
+    }
+    const int w = plm_get_width(plm);
+    const int h = plm_get_height(plm);
+    double fps = plm_get_framerate(plm);
+    if (fps <= 0.0)
+        fps = 30.0;
+    U32 *rgb = (w > 0 && h > 0) ? (U32 *)malloc((size_t)w * (size_t)h * 4u) : NULL;
+    if (!rgb) {
+        plm_destroy(plm);
+        return false;
+    }
+    /* plm_frame_to_bgra writes B, G, R and leaves the fourth byte alone: an
+       opaque 0xAARRGGBB on a little-endian host. */
+    memset(rgb, 0xFF, (size_t)w * (size_t)h * 4u);
+
+    const bool audio = plm_get_num_audio_streams(plm) > 0 &&
+                       StartVideoAudio((S32)plm_get_samplerate(plm), 2, 1);
+    plm_set_audio_enabled(plm, audio ? 1 : 0);
+    plm_set_loop(plm, 0);
+
+    if (VideoLogIsEnabled())
+        Log_Info("[VIDEO] PlayAcf: playing '%s' from %s (%dx%d, %.2f fps, audio %s)", name, path, w,
+                 h, fps, audio ? "on" : "off");
+
+    SetBlackPal();
+    BoxReset();
+    Cls();
+    BoxUpdate();
+    InitWaitNoKey();
+    InitWaitNoInput(I_JOY | I_FIRE | I_MENUS);
+
+    /* Same framing as the original movie, with the replacement's own aspect
+       kept inside it. */
+    S32 cineW, cineH, cineX, cineY;
+    Video_ComputeCineRect((S32)ModeDesiredX, (S32)ModeDesiredY, VideoFullScreen, &cineW, &cineH,
+                          &cineX, &cineY);
+    S32 dstW = cineW;
+    S32 dstH = (S32)((double)cineW * h / w);
+    if (dstH > cineH) {
+        dstH = cineH;
+        dstW = (S32)((double)cineH * w / h);
+    }
+    const S32 dstX = cineX + (cineW - dstW) / 2;
+    const S32 dstY = cineY + (cineH - dstH) / 2;
+
+    double audioTime = 0.0;
+    bool audioLeft = audio;
+    if (audio) {
+        audioLeft = PushHdAudio(plm, 0.0, 0.5, &audioTime);
+        ResumeVideoAudio();
+    }
+
+    bool skipped = false;
+    bool shown = false;
+    U32 startTicks = 0;
+    int frozen = 0;
+    int everFocused = 0;
+    U32 freezeStart = 0;
+    for (unsigned long c = 0; !skipped; c++) {
+        plm_frame_t *frame = plm_decode_video(plm);
+        if (!frame)
+            break;
+        if (audioLeft)
+            audioLeft = PushHdAudio(plm, frame->time, 0.5, &audioTime);
+        plm_frame_to_bgra(frame, (uint8_t *)rgb, w * 4);
+        PresentHd(rgb, w, h, dstX, dstY, dstW, dstH);
+        shown = true;
+
+        if (c == 0)
+            startTicks = Timer_ClockSource();
+        U32 nextAt = startTicks + (U32)((double)(c + 1) * 1000.0 / fps);
+        for (;;) {
+            MyGetInput();
+            ManageTime();
+            if (MyKey == K_ESC || (Input & I_MENUS)) {
+                skipped = true;
+                break;
+            }
+            if (AppActive)
+                everFocused = 1;
+            /* Hold the frame while the console is open or the window has lost
+               focus, then shift the schedule by the time held, as the Smacker
+               loop does. */
+            if (Console_IsOpen() || (everFocused && !AppActive)) {
+                if (!frozen) {
+                    if (audio)
+                        PauseVideoAudio();
+                    freezeStart = Timer_ClockSource();
+                    frozen = 1;
+                }
+                BoxStaticAdd(0, 0, (S32)(ModeDesiredX - 1), (S32)(ModeDesiredY - 1));
+                BoxUpdate();
+                continue;
+            }
+            if (frozen) {
+                const U32 pausedMs = Timer_ClockSource() - freezeStart;
+                startTicks += pausedMs;
+                nextAt += pausedMs;
+                if (audio)
+                    ResumeVideoAudio();
+                PresentHd(rgb, w, h, dstX, dstY, dstW, dstH);
+                frozen = 0;
+            }
+            if (Timer_ClockSource() >= nextAt)
+                break;
+            if (Timer_FixedDtActive())
+                Timer_FixedDtPumpPolled();
+            else
+                g_platform.system.delay_ms(1);
+        }
+    }
+    const S32 key = MyKey;
+
+    StopVideoAudio();
+    plm_destroy(plm);
+
+    /* The original fades its last frame out; do the same on the full-colour
+       one before handing back a black screen. */
+    if (shown && !Timer_FixedDtActive()) {
+        const size_t count = (size_t)w * (size_t)h;
+        for (int step = 7; step >= 0; step--) {
+            for (size_t i = 0; i < count; i++) {
+                const U32 p = rgb[i];
+                const U32 r = ((p >> 16) & 0xFF) * (U32)step / 8u;
+                const U32 g = ((p >> 8) & 0xFF) * (U32)step / 8u;
+                const U32 b = (p & 0xFF) * (U32)step / 8u;
+                rgb[i] = 0xFF000000u | (r << 16) | (g << 8) | b;
+            }
+            PresentHd(rgb, w, h, dstX, dstY, dstW, dstH);
+            g_platform.system.delay_ms(30);
+        }
+    }
+    free(rgb);
+
+    Cls();
+    BoxStaticFullflip();
+    SetBlackPal();
+    *outKey = key;
+    return true;
+}
 #endif
 
 //---------------------------------------------------------------------------
@@ -409,6 +630,15 @@ S32 PlayAcf(const char *name) {
 
         StopMusic();
         HQ_PauseSamples();
+
+        S32 hdKey = 0;
+        if (PlayHdMovie(name, &hdKey)) {
+            HQ_ResumeSamples();
+            InitWaitNoKey();
+            InitWaitNoInput(I_MENUS);
+            s_playacf_playing = 0;
+            return hdKey;
+        }
 
         smk smkObject = Video_OpenSource(PathAcf, n);
         if (!smkObject) {

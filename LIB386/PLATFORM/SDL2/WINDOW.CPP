@@ -8,6 +8,8 @@ const char *s_title = NULL;
 SDL_Window *s_window = NULL;
 SDL_Renderer *s_renderer = NULL;
 SDL_Texture *s_texture = NULL;
+SDL_Texture *s_rgbTexture = NULL; /* full-colour frames, sized to the source */
+uint32_t s_rgbWidth = 0, s_rgbHeight = 0;
 uint32_t s_width = 0, s_height = 0;
 bool s_fullscreen = false;
 SDL_ScaleMode s_scaleMode = SDL_ScaleModeNearest;
@@ -158,6 +160,9 @@ bool SDL2_ResizeWindow(uint32_t width, uint32_t height, bool keepSize) {
     return true;
 }
 void SDL2_DestroyWindow() {
+    SDL_DestroyTexture(s_rgbTexture);
+    s_rgbTexture = NULL;
+    s_rgbWidth = s_rgbHeight = 0;
     SDL_DestroyTexture(s_texture);
     SDL_DestroyRenderer(s_renderer);
     SDL_DestroyWindow(s_window);
@@ -287,4 +292,43 @@ bool SDL2_Present(const PlatformFrame *frame) {
         frame->overlay((uint32_t *)pixels, (uint32_t)pitch, frame->width, frame->height, frame->palette_rgb);
     SDL_UnlockTexture(s_texture);
     return converted && PresentTexture();
+}
+
+/* The rectangle is in framebuffer pixels; map it into the same letterboxed
+   viewport the indexed frame is drawn to. */
+bool SDL2_PresentRgb(const PlatformRgbFrame *frame) {
+    if (!frame || !frame->pixels || !frame->width || !frame->height || !s_renderer || !s_width ||
+        !s_height) {
+        SDL_SetError("Invalid full-colour frame");
+        return Error("SDL2 present");
+    }
+    if (!s_rgbTexture || s_rgbWidth != frame->width || s_rgbHeight != frame->height) {
+        SDL_DestroyTexture(s_rgbTexture);
+        s_rgbTexture = SDL_CreateTexture(s_renderer, SDL_PIXELFORMAT_ARGB8888,
+                                         SDL_TEXTUREACCESS_STREAMING, (int)frame->width,
+                                         (int)frame->height);
+        if (!s_rgbTexture) {
+            s_rgbWidth = s_rgbHeight = 0;
+            return Error("Unable to create SDL2 full-colour texture");
+        }
+        SDL_SetTextureScaleMode(s_rgbTexture, SDL_ScaleModeLinear);
+        s_rgbWidth = frame->width;
+        s_rgbHeight = frame->height;
+    }
+    if (SDL_UpdateTexture(s_rgbTexture, NULL, frame->pixels, (int)frame->pitch) != 0)
+        return Error("Unable to upload SDL2 full-colour frame");
+    int width, height;
+    if (SDL_GetRendererOutputSize(s_renderer, &width, &height) != 0)
+        return Error("Unable to query SDL2 render dimensions");
+    const SDL_Rect area = Viewport(width, height);
+    SDL_Rect dst;
+    dst.x = area.x + (int)((double)frame->dst_x * area.w / s_width);
+    dst.y = area.y + (int)((double)frame->dst_y * area.h / s_height);
+    dst.w = (int)((double)frame->dst_w * area.w / s_width);
+    dst.h = (int)((double)frame->dst_h * area.h / s_height);
+    if (SDL_SetRenderDrawColor(s_renderer, 0, 0, 0, 255) != 0 || SDL_RenderClear(s_renderer) != 0 ||
+        SDL_RenderCopy(s_renderer, s_rgbTexture, NULL, &dst) != 0)
+        return Error("Unable to present SDL2 full-colour frame");
+    SDL_RenderPresent(s_renderer);
+    return true;
 }

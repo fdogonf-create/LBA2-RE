@@ -441,6 +441,64 @@ def cmd_export(a):
         export_videos(a.game, a.out, find_ffmpeg(a.ffmpeg))
 
 
+# --- HD movies -----------------------------------------------------------
+
+# Voice-track suffix of PLAYACF.CPP's FindHdMovie, by Smacker track number.
+HD_VOICE_SUFFIX = {"1": "fr", "2": "de", "3": "en"}
+
+
+def cmd_hd_videos(a):
+    """Encode upscaled frames to video/hd/<name>.mpg for the engine.
+
+    MPEG-1 (mpeg1video + mp2) is what the engine's decoder (pl_mpeg) reads.
+    MPEG-1 has no 15 fps rate, so the 15 fps frames go out at 30 fps, each
+    shown twice; the repeats cost the decoder almost nothing."""
+    ffmpeg = find_ffmpeg(a.ffmpeg)
+    if not ffmpeg:
+        sys.exit("ffmpeg no encontrado")
+    out_dir = os.path.join(a.out, "video", "hd")
+    os.makedirs(out_dir, exist_ok=True)
+    for base in sorted(os.listdir(a.frames)):
+        frames_dir = os.path.join(a.frames, base)
+        orig_dir = os.path.join(a.originals, base)
+        info_path = os.path.join(orig_dir, "info.txt")
+        if not os.path.isdir(frames_dir) or not os.path.exists(info_path):
+            continue
+        info = dict(line.strip().split("=", 1) for line in open(info_path))
+        pngs = [f for f in os.listdir(frames_dir) if f.startswith("frame_") and f.endswith(".png")]
+        if len(pngs) < int(info["frames"]):
+            print("  %s: incompleto (%d de %s fotogramas), se salta" % (base, len(pngs), info["frames"]))
+            continue
+        name = base.split("_", 1)[1]
+        tracks = [t for t in info.get("audio_tracks", "").split(",") if t]
+        voices = [t for t in tracks if HD_VOICE_SUFFIX.get(t) in a.voices.split(",")] or [None]
+        for voice in voices:
+            target = name + ("_" + HD_VOICE_SUFFIX[voice] if voice else "") + ".mpg"
+            cmd = [ffmpeg, "-y", "-loglevel", "error", "-framerate", info["fps"],
+                   "-i", os.path.join(frames_dir, "frame_%05d.png")]
+            audio = [os.path.join(orig_dir, "track0.wav")] if "0" in tracks else []
+            if voice:
+                override = os.path.join(frames_dir, "voz_%s.wav" % HD_VOICE_SUFFIX[voice])
+                audio.append(override if os.path.exists(override)
+                             else os.path.join(orig_dir, "track%s.wav" % voice))
+            for path in audio:
+                cmd += ["-i", path]
+            graph = "[0:v]fps=30" + (",scale=%d:-2:flags=lanczos" % a.width if a.width else "") + "[v]"
+            if len(audio) == 2:
+                graph += ";[1:a][2:a]amix=inputs=2:normalize=0[a]"
+            cmd += ["-filter_complex", graph, "-map", "[v]"]
+            if len(audio) == 2:
+                cmd += ["-map", "[a]"]
+            elif audio:
+                cmd += ["-map", "1:a"]
+            cmd += ["-c:v", "mpeg1video", "-q:v", str(a.quality), "-g", "30", "-bf", "0"]
+            if audio:
+                cmd += ["-c:a", "mp2", "-b:a", "224k", "-ar", "44100", "-ac", "2"]
+            cmd += ["-f", "mpeg", os.path.join(out_dir, target)]
+            subprocess.run(cmd, check=True)
+            print("  %s" % target)
+
+
 # --- repack --------------------------------------------------------------
 
 def cmd_repack(a):
@@ -519,6 +577,16 @@ def main():
     r.add_argument("--no-match-volume", dest="match_volume", action="store_false",
                    help="no igualar el volumen al de la frase original")
     r.set_defaults(func=cmd_repack)
+    v = sub.add_parser("hd-videos", help="fotogramas mejorados -> video/hd/*.mpg para el motor")
+    v.add_argument("--frames", required=True, help="carpeta con una subcarpeta por video (00_ascenseu, ...)")
+    v.add_argument("--originals", required=True, help="2_Videos/fotogramas (audio e info.txt)")
+    v.add_argument("--out", required=True, help="se crea <out>/video/hd/")
+    v.add_argument("--width", type=int, default=0, help="reescalar a este ancho (0 = igual)")
+    v.add_argument("--voices", default="en",
+                   help="idiomas de voz a generar para la intro: en,fr,de (por defecto en)")
+    v.add_argument("--quality", type=int, default=3, help="2 (mejor) a 31; 3 por defecto")
+    v.add_argument("--ffmpeg", default=None)
+    v.set_defaults(func=cmd_hd_videos)
     a = ap.parse_args()
     a.func(a)
 
