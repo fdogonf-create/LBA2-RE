@@ -391,7 +391,10 @@ A cinematic can be replaced by an MPEG-1 program stream (mpeg1video + mp2 audio)
 voice track can follow the voice language with a suffix, `video/hd/intro_en.mpg`
 (`en`, `fr`, `de`, `sp`, `it`, `po`), which is tried before the plain name. The file carries its own
 mixed audio and is shown in full colour, framed like the original movie. Without a replacement the
-original Smacker movie plays, as it does on a backend whose `present_rgb` refuses full-colour frames (null, UWP).
+original Smacker movie plays, as it does on a backend whose `present_video` refuses movie frames (null, UWP). Frames go to the
+GPU as YUV 4:2:0, so the CPU only decodes. With `FullScreen=2` ("Movies fill the screen") a
+replacement covers the whole display, cropped to its aspect, instead of the original movie's
+rectangle.
 `scripts/dev/lba2_dub.py hd-videos` builds these files from a folder of upscaled frames; MPEG-1 has
 no 15 fps rate, so it writes 30 fps with each frame shown twice. Decoding uses the vendored
 [pl_mpeg](../LIB386/pl_mpeg/README.md) (`SOURCES/PLAYACF.CPP` `PlayHdMovie`).

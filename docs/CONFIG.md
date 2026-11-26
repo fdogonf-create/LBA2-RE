@@ -52,7 +52,7 @@ lba2.cfg stores user preferences and last-save info. Read at startup, written at
 | FollowCamera | int | 0, 1 | 0 | Auto camera (user-facing name; Enhanced Edition–style third-person follow in exterior). Config key stays `FollowCamera` for stability. 0=classic (default), 1=auto. Also reads legacy key `AutoCameraCenter` |
 | ReverseStereo | int | 0, 1 | 0 | 0=OFF, 1=ON |
 | DetailLevel | int | 0–3 | 3 | 0=min (no rain, no sea, no horizon), 1=486, 2=base Pentium, 3=max. Drives Shadow, RainEnable, MaxPolySea, FlagDrawHorizon |
-| FullScreen | int | 0, 1 | 1 | 0=small videos, 1=fullscreen videos. Invalid values → 1 |
+| FullScreen | int | 0, 1, 2 | 1 | 0=small videos, 1=fullscreen videos, 2=full-colour replacement movies cover the whole display, cropped to fit (Smacker movies play as 1). Invalid values → 1 |
 | DisplayFullScreen | int | 0, 1 | 1 | 0=windowed display, 1=fullscreen display. Invalid values → 0 |
 | FlagDisplayText | string | ON, OFF | ON | Case-insensitive. Any other value → ON |
 | WaveVolume | int | 0–127 | 97 | Sample/SFX volume |

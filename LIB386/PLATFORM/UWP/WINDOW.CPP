@@ -345,7 +345,7 @@ bool Uwp_SetPresentFilter(PlatformPresentFilter mode) {
     return true;
 }
 
-bool Uwp_PresentRgb(const PlatformRgbFrame *) {
+bool Uwp_PresentVideo(const PlatformVideoFrame *) {
     return Uwp_Fail("UWP presentation shows indexed frames only");
 }
 

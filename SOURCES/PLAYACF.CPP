@@ -426,36 +426,57 @@ static bool PushHdAudio(plm_t *plm, double until, double lead, double *audioTime
     return true;
 }
 
-static void PresentHd(uint32_t *rgb, int w, int h, S32 dstX, S32 dstY, S32 dstW, S32 dstH) {
-    PlatformRgbFrame frame;
-    frame.pixels = rgb;
-    frame.width = (uint32_t)w;
-    frame.height = (uint32_t)h;
-    frame.pitch = (uint32_t)w * 4u;
-    frame.dst_x = dstX;
-    frame.dst_y = dstY;
-    frame.dst_w = dstW;
-    frame.dst_h = dstH;
-    g_platform.window.present_rgb(&frame);
+/* Where and how a movie frame is drawn: the original movie's rectangle with
+   the replacement's own aspect kept inside it, or, at VideoFullScreen 2, the
+   whole display with the frame cropped to fill it. */
+struct HdLayout {
+    S32 x, y, w, h;
+    bool fill;
+};
+
+static bool PresentHd(const plm_frame_t *frame, const HdLayout &layout, U8 brightness) {
+    PlatformVideoFrame out;
+    out.y = frame->y.data;
+    out.u = frame->cb.data;
+    out.v = frame->cr.data;
+    out.y_pitch = frame->y.width;
+    out.uv_pitch = frame->cb.width;
+    out.width = frame->width;
+    out.height = frame->height;
+    out.dst_x = layout.x;
+    out.dst_y = layout.y;
+    out.dst_w = layout.w;
+    out.dst_h = layout.h;
+    out.fill_display = layout.fill;
+    out.brightness = brightness;
+    return g_platform.window.present_video(&out);
+}
+
+/* A backend without movie presentation refuses this black frame; the
+   original movie plays instead. */
+static bool HdPresentationAvailable(void) {
+    static const uint8_t luma[4] = {16, 16, 16, 16};
+    static const uint8_t chroma[1] = {128};
+    PlatformVideoFrame probe;
+    probe.y = luma;
+    probe.u = chroma;
+    probe.v = chroma;
+    probe.y_pitch = 2;
+    probe.uv_pitch = 1;
+    probe.width = probe.height = 2;
+    probe.dst_x = probe.dst_y = 0;
+    probe.dst_w = (int32_t)ModeDesiredX;
+    probe.dst_h = (int32_t)ModeDesiredY;
+    probe.fill_display = false;
+    probe.brightness = 255;
+    return g_platform.window.present_video(&probe);
 }
 
 /* Play the replacement for `name` if there is one. Returns false, having
    touched nothing, when the original should play instead. */
 static bool PlayHdMovie(const char *name, S32 *outKey) {
     char path[ADELINE_MAX_PATH];
-    if (!FindHdMovie(name, path, ADELINE_MAX_PATH))
-        return false;
-    /* A backend without full-colour presentation refuses this black pixel;
-       the original movie plays instead. */
-    const uint32_t black = 0xFF000000u;
-    PlatformRgbFrame probe;
-    probe.pixels = &black;
-    probe.width = probe.height = 1;
-    probe.pitch = 4;
-    probe.dst_x = probe.dst_y = 0;
-    probe.dst_w = (int32_t)ModeDesiredX;
-    probe.dst_h = (int32_t)ModeDesiredY;
-    if (!g_platform.window.present_rgb(&probe))
+    if (!FindHdMovie(name, path, ADELINE_MAX_PATH) || !HdPresentationAvailable())
         return false;
 
     plm_t *plm = plm_create_with_filename(path);
@@ -471,14 +492,10 @@ static bool PlayHdMovie(const char *name, S32 *outKey) {
     double fps = plm_get_framerate(plm);
     if (fps <= 0.0)
         fps = 30.0;
-    uint32_t *rgb = (w > 0 && h > 0) ? (uint32_t *)malloc((size_t)w * (size_t)h * 4u) : NULL;
-    if (!rgb) {
+    if (w <= 0 || h <= 0) {
         plm_destroy(plm);
         return false;
     }
-    /* plm_frame_to_bgra writes B, G, R and leaves the fourth byte alone: an
-       opaque 0xAARRGGBB on a little-endian host. */
-    memset(rgb, 0xFF, (size_t)w * (size_t)h * 4u);
 
     const bool audio = plm_get_num_audio_streams(plm) > 0 &&
                        StartVideoAudio((S32)plm_get_samplerate(plm), 2, 1);
@@ -496,46 +513,56 @@ static bool PlayHdMovie(const char *name, S32 *outKey) {
     InitWaitNoKey();
     InitWaitNoInput(I_JOY | I_FIRE | I_MENUS);
 
-    /* Same framing as the original movie, with the replacement's own aspect
-       kept inside it. */
+    HdLayout layout;
     S32 cineW, cineH, cineX, cineY;
     Video_ComputeCineRect((S32)ModeDesiredX, (S32)ModeDesiredY, VideoFullScreen, &cineW, &cineH,
                           &cineX, &cineY);
-    S32 dstW = cineW;
-    S32 dstH = (S32)((double)cineW * h / w);
-    if (dstH > cineH) {
-        dstH = cineH;
-        dstW = (S32)((double)cineH * w / h);
+    layout.w = cineW;
+    layout.h = (S32)((double)cineW * h / w);
+    if (layout.h > cineH) {
+        layout.h = cineH;
+        layout.w = (S32)((double)cineH * w / h);
     }
-    const S32 dstX = cineX + (cineW - dstW) / 2;
-    const S32 dstY = cineY + (cineH - dstH) / 2;
+    layout.x = cineX + (cineW - layout.w) / 2;
+    layout.y = cineY + (cineH - layout.h) / 2;
+    layout.fill = VideoFullScreen == 2;
 
+    /* Audio is kept a fixed lead ahead of the later of the frame's time and
+       the wall clock: if decoding falls behind real time on a slow device,
+       the device still has sound queued instead of running dry between
+       frames. */
+    const double kAudioLead = 0.75;
     double audioTime = 0.0;
     bool audioLeft = audio;
     if (audio) {
-        audioLeft = PushHdAudio(plm, 0.0, 0.5, &audioTime);
+        audioLeft = PushHdAudio(plm, 0.0, kAudioLead, &audioTime);
         ResumeVideoAudio();
     }
 
     bool skipped = false;
-    bool shown = false;
-    U32 startTicks = 0;
+    plm_frame_t *last = NULL;
+    U32 startTicks = Timer_ClockSource();
     int frozen = 0;
     int everFocused = 0;
     U32 freezeStart = 0;
+    const double frameMs = 1000.0 / fps;
     for (unsigned long c = 0; !skipped; c++) {
         plm_frame_t *frame = plm_decode_video(plm);
         if (!frame)
             break;
-        if (audioLeft)
-            audioLeft = PushHdAudio(plm, frame->time, 0.5, &audioTime);
-        plm_frame_to_bgra(frame, (uint8_t *)rgb, w * 4);
-        PresentHd(rgb, w, h, dstX, dstY, dstW, dstH);
-        shown = true;
+        last = frame;
+        const U32 nextAt0 = startTicks + (U32)((double)(c + 1) * frameMs);
+        if (audioLeft) {
+            const double wall = (double)(Timer_ClockSource() - startTicks) / 1000.0;
+            audioLeft = PushHdAudio(plm, frame->time > wall ? frame->time : wall, kAudioLead,
+                                    &audioTime);
+        }
+        /* A frame already past its slot is decoded (later frames build on it)
+           but not shown, so a slow device drops frames rather than time. */
+        if (c == 0 || Timer_ClockSource() < nextAt0)
+            PresentHd(frame, layout, 255);
 
-        if (c == 0)
-            startTicks = Timer_ClockSource();
-        U32 nextAt = startTicks + (U32)((double)(c + 1) * 1000.0 / fps);
+        U32 nextAt = nextAt0;
         for (;;) {
             MyGetInput();
             ManageTime();
@@ -565,7 +592,7 @@ static bool PlayHdMovie(const char *name, S32 *outKey) {
                 nextAt += pausedMs;
                 if (audio)
                     ResumeVideoAudio();
-                PresentHd(rgb, w, h, dstX, dstY, dstW, dstH);
+                PresentHd(frame, layout, 255);
                 frozen = 0;
             }
             if (Timer_ClockSource() >= nextAt)
@@ -579,25 +606,16 @@ static bool PlayHdMovie(const char *name, S32 *outKey) {
     const S32 key = MyKey;
 
     StopVideoAudio();
-    plm_destroy(plm);
 
-    /* The original fades its last frame out; do the same on the full-colour
-       one before handing back a black screen. */
-    if (shown && !Timer_FixedDtActive()) {
-        const size_t count = (size_t)w * (size_t)h;
+    /* The original fades its last frame out; do the same here. The decoder
+       still owns the frame, so this runs before it is destroyed. */
+    if (last && !Timer_FixedDtActive()) {
         for (int step = 7; step >= 0; step--) {
-            for (size_t i = 0; i < count; i++) {
-                const uint32_t p = rgb[i];
-                const uint32_t r = ((p >> 16) & 0xFFu) * (uint32_t)step / 8u;
-                const uint32_t g = ((p >> 8) & 0xFFu) * (uint32_t)step / 8u;
-                const uint32_t b = (p & 0xFFu) * (uint32_t)step / 8u;
-                rgb[i] = 0xFF000000u | (r << 16) | (g << 8) | b;
-            }
-            PresentHd(rgb, w, h, dstX, dstY, dstW, dstH);
+            PresentHd(last, layout, (U8)(step * 255 / 8));
             g_platform.system.delay_ms(30);
         }
     }
-    free(rgb);
+    plm_destroy(plm);
 
     Cls();
     BoxStaticFullflip();

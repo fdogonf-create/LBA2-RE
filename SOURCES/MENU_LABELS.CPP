@@ -198,6 +198,13 @@ const struct MenuLabelRow LocalizedMenuLabels[MENU_LABEL_COUNT] = {
       "Vídeos ajustados a pantalla",
       "Video adattati allo schermo",
       "Vídeos ajustados à tela"}},
+    {MENU_LABEL_MOVIE_FILL,
+     {"Movies fill the screen",
+      "Vidéos plein écran",
+      "Videos füllen den Bildschirm",
+      "Vídeos a pantalla completa",
+      "Video a schermo intero",
+      "Vídeos em tela cheia"}},
     /* Key-config footer. The three %s are the currently-bound Exit / Select /
        Clear keys, filled in by DrawStatusConfig (CONFIG.CPP). */
     {MENU_LABEL_KEYCFG_FOOTER,

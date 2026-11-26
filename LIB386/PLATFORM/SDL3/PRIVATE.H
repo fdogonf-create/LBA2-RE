@@ -43,7 +43,7 @@ void SDL3_SetRelativeMouse(bool enabled);
 void SDL3_SetMouseGrab(bool enabled);
 void SDL3_HandleWindowEvent(const SDL_Event *event);
 bool SDL3_Present(const PlatformFrame *frame);
-bool SDL3_PresentRgb(const PlatformRgbFrame *frame);
+bool SDL3_PresentVideo(const PlatformVideoFrame *frame);
 #ifdef LBA2_SDL3_TESTS
 void SDL3_SetPresentationProbe(void (*probe)(SDL_Renderer *renderer));
 void SDL3_SetFullscreenProbe(bool (*probe)(SDL_Window *window, bool enabled));

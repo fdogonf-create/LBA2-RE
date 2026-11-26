@@ -538,8 +538,9 @@ static void BuildCustomMenuText(S32 num, char *string) {
 
     case MENU_ID_VIDEO_SIZE:
         CopyUtf8ToCp850(string, 256,
-                        GetLocalizedMenuLabel(VideoFullScreen ? MENU_LABEL_MOVIE_FIT
-                                                              : MENU_LABEL_MOVIE_ORIGINAL));
+                        GetLocalizedMenuLabel(VideoFullScreen == 2   ? MENU_LABEL_MOVIE_FILL
+                                              : VideoFullScreen ? MENU_LABEL_MOVIE_FIT
+                                                                : MENU_LABEL_MOVIE_ORIGINAL));
         break;
 
     case MENU_ID_DISPLAY_FULLSCREEN:
@@ -3629,7 +3630,7 @@ S32 GereAdvancedOptionsMenu(void) {
             break;
 
         case MENU_ID_VIDEO_SIZE:
-            VideoFullScreen ^= 1;
+            VideoFullScreen = (VideoFullScreen + 1) % 3;
             break;
 
         case MENU_ID_RETAIL_FIXES:
