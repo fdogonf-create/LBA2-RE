@@ -23,6 +23,7 @@
 #include <SYSTEM/KEYBOARD_KEYS.H>
 #include <stdint.h>
 #include "AMBIANCE.H"
+#include "ANALOGMOVE.H" /* the left stick walking Twinsen the way it points */
 
 extern S32 FlagAnimWhoSpeak; // MESSAGE.CPP
 
@@ -4072,6 +4073,17 @@ void DoDir(U8 numobj) {
     switch (ptrobj->Move) {
         /*-------------------------------------------------------------------------*/
     case MOVE_MANUAL:
+
+        if (numobj == NUM_PERSO) {
+            /* Mid-jump and during an animation that rotates him, the tank
+               controls leave his facing alone too. */
+            AnalogMove_Apply(&ptrobj->Obj.Beta,
+                             !(Jumping & 1023) AND !(ptrobj->WorkFlags & ANIM_MASTER_ROT),
+                             CubeMode == CUBE_EXTERIEUR,
+                             FlagClimbing OR PtrZoneClimb != NULL,
+                             BetaCam,
+                             ManualCameraOrbitActive);
+        }
 
         if ((Input & I_ACTION_ALWAYS)
                 AND !(ptrobj->WorkFlags & ANIM_MASTER_GRAVITY)

@@ -9,6 +9,7 @@ namespace {
 void Shutdown() {
     g_platform.system.shutdown();
     SDL2_SwitchEndNetloader();
+    SDL2_SwitchSetCpuBoost(false);
 }
 } // namespace
 
@@ -25,5 +26,6 @@ int main(int argc, char *argv[]) {
     }
     if (!SDL2_SwitchInitNetloader())
         SDL2_SwitchMessageBox("Network logging unavailable", SDL_GetError());
+    SDL2_SwitchSetCpuBoost(true);
     return Lba2Main(argc, argv);
 }

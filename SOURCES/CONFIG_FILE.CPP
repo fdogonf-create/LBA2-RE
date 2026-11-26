@@ -1,6 +1,7 @@
 #include "C_EXTERN.H"
 
 #include "CONFIG_FILE.H"
+#include "ANALOGMOVE.H" /* GamepadAnalogMove and its default */
 #include "SETTINGS.H"
 #include "CONSOLE/CONSOLE.H" /* Console_SetToggleScancode */
 #include "CONTROL.H"         /* Control_Has* / Control_Get*: the per-run overrides */
@@ -159,7 +160,7 @@ static const T_SETTING BootSettings[] = {
     {"AllCameras", NULL, NULL, &AllCameras, SETTING_RAW, TRUE, SETTING_MIN_NONE, SETTING_MAX_NONE, NULL, NULL, NULL},
     /* User-facing name: "Auto camera" (menu/docs); the legacy spelling is read
        so an existing cfg keeps working. The camera module owns its cvar. */
-    {"FollowCamera", "AutoCameraCenter", NULL, &FollowCamera, SETTING_OR_DEFAULT, FALSE, 0, 1, NULL, NULL, NULL},
+    {"FollowCamera", "AutoCameraCenter", NULL, &FollowCamera, SETTING_OR_DEFAULT, LBA2_FOLLOW_CAMERA_DEFAULT, 0, 1, NULL, NULL, NULL},
     {"DetailLevel", NULL, NULL, &DetailLevel, SETTING_CLAMP, MAX_DETAIL_LEVEL, 0, MAX_DETAIL_LEVEL, NULL, NULL,
      ApplyDetailLevel},
     {"FullScreen", NULL, NULL, &VideoFullScreen, SETTING_OR_DEFAULT, TRUE, 0, 2, NULL, NULL, NULL, NULL, NULL,
@@ -222,6 +223,17 @@ static const T_SETTING GamepadSettings[] = {
      NULL, NULL, NULL, NULL, "Gamepad stick deadzone (SDL units 0-32767)"},
     {"GamepadCameraAnalog", NULL, "cam_stick_analog", &GamepadCameraAnalog, SETTING_TRUTHY, TRUE, 0, 1,
      NULL, NULL, NULL, NULL, "Analog right-stick camera in Auto cam", SETTING_RECORDED, SETTING_BEFORE_NONE},
+    {"GamepadDpadZoom", NULL, "pad_dpad_zoom", &GamepadDpadZoom, SETTING_TRUTHY, LBA2_MODERN_PAD_DEFAULT, 0, 1,
+     NULL, NULL, NULL, NULL, "D-pad up / down zoom the Auto camera in / out", SETTING_RECORDED, SETTING_BEFORE(0)},
+    {"GamepadBehaviourCycle", NULL, "pad_cycle_behaviour", &GamepadBehaviourCycle, SETTING_TRUTHY,
+     LBA2_MODERN_PAD_DEFAULT, 0, 1, NULL, NULL, NULL, NULL, "A tap of ZL steps to the next behaviour",
+     SETTING_RECORDED, SETTING_BEFORE(0)},
+    {"GamepadCameraCurve", NULL, "cam_stick_curve", &GamepadCameraCurve, SETTING_TRUTHY, LBA2_MODERN_PAD_DEFAULT, 0, 1,
+     NULL, NULL, NULL, NULL, "Right stick: small tilts turn the camera gently (squared ramp)", SETTING_RECORDED,
+     SETTING_BEFORE(0)},
+    {"GamepadAnalogMove", NULL, "pad_analog_move", &GamepadAnalogMove, SETTING_TRUTHY, LBA2_ANALOG_MOVE_DEFAULT, 0, 1,
+     NULL, NULL, NULL, NULL, "Left stick walks Twinsen the way it points (off = original tank controls)",
+     SETTING_RECORDED, SETTING_BEFORE(0)},
     {"GamepadCameraSensX", NULL, "cam_stick_x", &GamepadCameraSensX, SETTING_CLAMP, GAMEPAD_CAM_SENS_DEFAULT, 1, 10,
      NULL, NULL, NULL, NULL, "Right-stick orbit sensitivity (1-10)", SETTING_RECORDED, SETTING_BEFORE_NONE},
     {"GamepadCameraSensY", NULL, "cam_stick_y", &GamepadCameraSensY, SETTING_CLAMP, GAMEPAD_CAM_SENS_DEFAULT, 1, 10,

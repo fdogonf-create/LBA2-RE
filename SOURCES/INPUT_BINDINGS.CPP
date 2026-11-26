@@ -72,6 +72,9 @@ const T_DEF_KEY GamepadKeysDefault[MAX_INPUT_SLOTS] = {
 #ifdef LBA2_GAMEPAD_STICK_LAYOUT
     {K_GAMEPAD_LSTICK_UP, 0},   // 0  I_UP
     {K_GAMEPAD_LSTICK_DOWN, 0}, // 1  I_DOWN
+#elif defined(LBA2_MODERN_PAD_DEFAULT) && LBA2_MODERN_PAD_DEFAULT
+    {K_GAMEPAD_RTRIGGER, 0}, // 0  I_UP
+    {0, 0},                  // 1  I_DOWN (ZL steps the behaviour; the stick turns him round)
 #else
     {K_GAMEPAD_RTRIGGER, 0}, // 0  I_UP
     {K_GAMEPAD_LTRIGGER, 0}, // 1  I_DOWN
@@ -115,9 +118,14 @@ const T_DEF_KEY GamepadKeysDefault[MAX_INPUT_SLOTS] = {
     {0, 0},                                          // 30
     {0, 0},                                          // 31
     {K_GAMEPAD_DPAD_RIGHT, 0},                       // 32 I_PINGOUIN
-    {K_GAMEPAD_DPAD_DOWN, 0},                        // 33 I_JETPACK
-    {K_GAMEPAD_DPAD_UP, 0},                          // 34 I_PROTECTION
-    {K_GAMEPAD_DPAD_LEFT, 0},                        // 35 I_FOUDRE
+#if defined(LBA2_MODERN_PAD_DEFAULT) && LBA2_MODERN_PAD_DEFAULT
+    {0, 0}, // 33 I_JETPACK (D-pad down zooms the camera out)
+    {0, 0}, // 34 I_PROTECTION (D-pad up zooms the camera in)
+#else
+    {K_GAMEPAD_DPAD_DOWN, 0}, // 33 I_JETPACK
+    {K_GAMEPAD_DPAD_UP, 0},   // 34 I_PROTECTION
+#endif
+    {K_GAMEPAD_DPAD_LEFT, 0}, // 35 I_FOUDRE
 };
 
 U32 NbInput = MAX_INPUT_SLOTS;

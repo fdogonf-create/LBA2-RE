@@ -13,6 +13,7 @@ bool SDL2_SwitchMessageBox(const char *title, const char *message);
 bool SDL2_SwitchInitGameData(void);
 bool SDL2_SwitchInitNetloader(void);
 void SDL2_SwitchEndNetloader(void);
+void SDL2_SwitchSetCpuBoost(bool enable);
 
 #ifdef __cplusplus
 }
