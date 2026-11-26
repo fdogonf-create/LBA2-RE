@@ -3829,6 +3829,8 @@ static void BuildVideotecaMenu(void) {
 static S32 GereVideotecaMenu(S32 startPage) {
     S32 flag = 0;
 
+    // Saves made before the library existed, or never loaded since, count too.
+    AcfNoteSeenFromSaves();
     s_vtTotal = Videoteca_Total();
     s_vtSeen = Videoteca_SeenCount();
     s_vtPage = startPage;

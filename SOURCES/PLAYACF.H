@@ -65,6 +65,8 @@ extern S32 Video_HasHdReplacement(const char *name);
 extern S32 AcfSeenInSave(S32 n);
 extern void AcfSaveFlags(S16 *saved);
 extern void AcfRestoreFlags(const S16 *saved);
+/* Records as seen every cinematic any save in the save folder has played. */
+extern void AcfNoteSeenFromSaves(void);
 
 #ifdef USE_MVIDEO_SMACKER
 void VideoLogEnable(int enable);
