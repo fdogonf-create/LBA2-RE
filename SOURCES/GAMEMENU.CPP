@@ -227,6 +227,9 @@ static S32 s_vtPage = 0;
 static S32 s_vtSeen = 0;
 static S32 s_vtTotal = 0;
 static U16 VideotecaMenu[4 + (2 + VIDEOTECA_PER_PAGE) * 2];
+// The page's row texts, made once when the page is built: the menu redraws
+// the selected row every frame, and a title reads a file.
+static char s_vtRowText[VIDEOTECA_PER_PAGE][256];
 
 static S32 VideotecaPages(void) {
     return s_vtTotal > 0 ? (s_vtTotal + VIDEOTECA_PER_PAGE - 1) / VIDEOTECA_PER_PAGE : 1;
@@ -516,17 +519,7 @@ static void BuildCustomMenuText(S32 num, char *string) {
     {
         const S32 index = VideotecaRowIndex(num);
         if (index >= 0) {
-            if (index < s_vtSeen) {
-                const char *name = Videoteca_SeenName(index);
-                char title[128];
-                char line[192];
-                Videoteca_Title(name, title, sizeof title);
-                snprintf(line, sizeof line, Videoteca_HasHd(name) ? "%d. %s (HD)" : "%d. %s",
-                         (int)index + 1, title);
-                CopyUtf8ToCp850(string, 256, line);
-            } else {
-                snprintf(string, 256, "%d. ? ? ?", (int)index + 1);
-            }
+            strcpy(string, s_vtRowText[num - MENU_ID_VIDEO_BASE]);
             return;
         }
     }
@@ -3729,6 +3722,10 @@ S32 GereAdvancedOptionsMenu(void) {
         }
     }
 
+    /* Keep the choices now: a console's system menu may close the game
+       without the clean exit that writes the config. */
+    WriteConfigFile();
+
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
 
@@ -3805,8 +3802,20 @@ static void BuildVideotecaMenu(void) {
     *p++ = 26; // menu precedent
     nb++;
     for (S32 i = 0; i < VIDEOTECA_PER_PAGE; i++) {
-        if (s_vtPage * VIDEOTECA_PER_PAGE + i >= s_vtTotal)
+        const S32 index = s_vtPage * VIDEOTECA_PER_PAGE + i;
+        if (index >= s_vtTotal)
             break;
+        if (index < s_vtSeen) {
+            const char *name = Videoteca_SeenName(index);
+            char title[128];
+            char line[192];
+            Videoteca_Title(name, title, sizeof title);
+            snprintf(line, sizeof line, Videoteca_HasHd(name) ? "%d. %s (HD)" : "%d. %s",
+                     (int)index + 1, title);
+            CopyUtf8ToCp850(s_vtRowText[i], sizeof s_vtRowText[i], line);
+        } else {
+            snprintf(s_vtRowText[i], sizeof s_vtRowText[i], "%d. ? ? ?", (int)index + 1);
+        }
         *p++ = MENU_TYPE_VIDEO_ROW;
         *p++ = (U16)(MENU_ID_VIDEO_BASE + i);
         nb++;
@@ -4007,6 +4016,10 @@ S32 OptionsMenu(S32 flagflip) {
 
     HQ_StopSample();
     SetDetailLevel(); // prise en compte des différentes options
+
+    /* Every Options page has been left by now; keep what was chosen on them
+       for the same reason GereLanguageMenu does. */
+    WriteConfigFile();
 
     if (flagflip) {
         // Backdrop only. The caller's menu loop draws over it and flips on its

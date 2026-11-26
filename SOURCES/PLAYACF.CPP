@@ -482,7 +482,9 @@ static bool HdPresentationAvailable(void) {
 
 S32 Video_HasHdReplacement(const char *name) {
     char path[ADELINE_MAX_PATH];
-    return FindHdMovie(name, path, ADELINE_MAX_PATH) && HdPresentationAvailable();
+    /* The file alone: the presentation probe shows a frame, which a menu
+       asking about its rows must not. */
+    return FindHdMovie(name, path, ADELINE_MAX_PATH);
 }
 
 /* Play the replacement for `name` if there is one. Returns false, having
