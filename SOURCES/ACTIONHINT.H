@@ -38,6 +38,14 @@ extern S32 ActionHint_InReach(S32 dx, S32 dz, S32 beta);
 /* Something can be done now. `nowMs` is the platform clock. */
 extern void ActionHint_Note(U32 nowMs);
 
+/* A word to show beside the button, for a hint that is not plain "talk" or
+ * "search": a ladder or a window Twinsen can climb in through. Notes the hint
+ * too. The caller picks the language. */
+#define ACTION_HINT_LABEL_NONE 0
+#define ACTION_HINT_LABEL_CLIMB_ES 1 /* "Trepar" */
+#define ACTION_HINT_LABEL_CLIMB_EN 2 /* "Climb" */
+extern void ActionHint_NoteLabel(U32 nowMs, S32 label);
+
 /* Whether the hint is up at `nowMs`. */
 extern S32 ActionHint_Visible(U32 nowMs);
 

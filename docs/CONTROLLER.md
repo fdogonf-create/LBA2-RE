@@ -60,7 +60,7 @@ A build with `LBA2_MODERN_PAD_DEFAULT` (the Switch preset) binds the pad by the 
 | Left / right stick click | Dodge / Center camera | |
 | D-pad | Up / down zoom, left lightning, right penguin | Navigate |
 
-In the buggy (`MOVE_BUGGY_MANUAL`) ZR accelerates and ZL brakes and reverses (`AnalogMove_ApplyBuggy`), and the left stick steers; out of it they go back to the jobs above. On a ladder the stick's up and down climb and come down; standing at a ladder or a window you climb in through, walking into the wall starts the climb, and pulling the stick away steps him back instead of turning him round.
+In the buggy (`MOVE_BUGGY_MANUAL`) ZR accelerates and ZL brakes and reverses (`AnalogMove_ApplyBuggy`), and the left stick steers; out of it they go back to the jobs above. On a ladder the stick's up and down climb and come down; standing at a ladder or a window you climb in through, walking into the wall starts the climb, and pulling the stick away steps him back instead of turning him round. With the action hint on, the hint there reads "Trepar" / "Climb" (`ActionHint_NoteLabel`), and A turns him to the wall and starts the climb (`ClimbByAction` in `OBJECT.CPP`). The words are drawn from `ACTIONHINT_LABEL.H`, made by `scripts/dev/gen_action_hint_label.py`.
 
 In menus the Switch's A and B are remapped whatever they are bound to in play, and a button still held across the change waits for its release. The build writes `GamepadLayout: 2` beside the pad bindings; a cfg without it was written under an earlier layout, and its pad bindings give way to the defaults once.
 

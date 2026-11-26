@@ -4039,6 +4039,60 @@ TRACK_ATTACK
 #define HEIGHT_JETPACK 543
 
 //▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+/* The facing, nearest his own, from which Twinsen standing in ladder zone
+ * `ptrz` would find the wall to climb in front of him, by the ladder zone's own
+ * test in CheckZoneSce; -1 when there is none, or he is at the top already. */
+static S32 ClimbWallBeta(T_OBJET *ptrobj, T_ZONE *ptrz) {
+    S32 best = -1;
+    S32 bestDiff = 4096;
+    S32 n;
+
+    if (ptrobj->Obj.Y > ptrz->Y1 - 256)
+        return -1;
+    for (n = 0; n < 16; n++) {
+        S32 beta = n * 256;
+        S32 diff;
+        S32 x0, z0;
+
+        Rotate(ptrobj->XMin, ptrobj->ZMin, beta + (896 * MUL_ANGLE) + (512 * MUL_ANGLE));
+        x0 = X0 + ptrobj->Obj.X;
+        z0 = Z0 + ptrobj->Obj.Z;
+        if (x0 < 0 OR z0 < 0 OR x0 > 64 * SIZE_BRICK_XZ - 1 OR z0 > 64 * SIZE_BRICK_XZ - 1)
+            continue;
+        if (PtrWorldColBrick(x0, ptrobj->Obj.Y + 256, z0) == 0)
+            continue;
+        diff = AnalogMove_AngleDiff(ptrobj->Obj.Beta & 4095, beta);
+        if (diff < 0)
+            diff = -diff;
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            best = beta;
+        }
+    }
+    return best;
+}
+
+/* At a ladder or a window he can climb in through, the action hint says
+ * "climb", and the action button turns him to the wall and starts the climb in
+ * place of the action it would do there. TRUE when it took this frame's input. */
+static S32 ClimbByAction(T_OBJET *ptrobj) {
+    S32 wall;
+
+    if (!GamepadActionHint OR PtrZoneClimb == NULL OR FlagClimbing OR CinemaMode OR ptrobj->FlagAnim == ANIM_ALL_THEN OR(ptrobj->WorkFlags & (FALLING | ANIM_MASTER_GRAVITY)))
+        return FALSE;
+    wall = ClimbWallBeta(ptrobj, PtrZoneClimb);
+    if (wall < 0)
+        return FALSE;
+    ActionHint_NoteLabel((U32)g_platform.system.ticks_ms(),
+                         Language == 3 ? ACTION_HINT_LABEL_CLIMB_ES : ACTION_HINT_LABEL_CLIMB_EN);
+    if (!(Input & I_ACTION_ALWAYS))
+        return FALSE;
+    ptrobj->Obj.Beta = wall;
+    Input &= ~(I_ACTION_ALWAYS | I_JOY);
+    Input |= I_UP;
+    return TRUE;
+}
+
 void DoDir(U8 numobj) {
     T_OBJET *ptrobj;
     S32 info3;
@@ -4076,7 +4130,7 @@ void DoDir(U8 numobj) {
         /*-------------------------------------------------------------------------*/
     case MOVE_MANUAL:
 
-        if (numobj == NUM_PERSO) {
+        if (numobj == NUM_PERSO AND !ClimbByAction(ptrobj)) {
             /* Mid-jump and during an animation that rotates him, the tank
                controls leave his facing alone too. */
             AnalogMove_Apply(&ptrobj->Obj.Beta,

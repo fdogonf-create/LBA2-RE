@@ -3,6 +3,7 @@
 #include <PLATFORM/PLATFORM.H>
 
 #include "ACTIONHINT_ICON.H"
+#include "ACTIONHINT_LABEL.H"
 
 #include <math.h>
 #include <stddef.h>
@@ -41,6 +42,15 @@ S32 ActionHint_InReach(S32 dx, S32 dz, S32 beta) {
 void ActionHint_Note(U32 nowMs) {
     s_lastMs = nowMs;
     s_noted = 1;
+}
+
+static S32 s_label = ACTION_HINT_LABEL_NONE;
+static U32 s_labelMs = 0;
+
+void ActionHint_NoteLabel(U32 nowMs, S32 label) {
+    ActionHint_Note(nowMs);
+    s_label = label;
+    s_labelMs = nowMs;
 }
 
 S32 ActionHint_Visible(U32 nowMs) {
@@ -95,6 +105,50 @@ static void SampleIcon(const U32 *icon, double u, double v, U32 *r, U32 *g, U32 
     *g = (U32)(acc[1] + 0.5);
     *b = (U32)(acc[2] + 0.5);
     *a = (U32)(acc[3] + 0.5);
+}
+
+/* A coverage mask (w x h) drawn `height` pixels tall from its left edge at
+ * x0, centred on cy, in white with a dark shadow so it reads on any scene. */
+static void DrawLabel(U32 *frameBuffer, S32 pitchPixels, S32 width, S32 fbHeight, const U8 *mask, S32 w, S32 h,
+                      S32 x0, S32 cy, S32 height) {
+    S32 outW = w * height / h;
+    S32 y0 = cy - height / 2;
+    S32 shadow = height / 14 + 1;
+    S32 pass;
+    S32 x, y;
+
+    for (pass = 0; pass < 2; pass++) {
+        S32 off = pass == 0 ? shadow : 0;
+        U32 c = pass == 0 ? 0 : 255;
+        U32 maxA = pass == 0 ? 170 : 255;
+        for (y = 0; y < height; y++) {
+            S32 py = y0 + y + off;
+            double v = (y + 0.5) * h / height - 0.5;
+            S32 sy = (S32)floor(v);
+            double fy = v - sy;
+            if (py < 0 OR py >= fbHeight)
+                continue;
+            for (x = 0; x < outW; x++) {
+                S32 px = x0 + x + off;
+                double u = (x + 0.5) * w / outW - 0.5;
+                S32 sx = (S32)floor(u);
+                double fx = u - sx;
+                double acc = 0;
+                S32 k;
+                if (px < 0 OR px >= width)
+                    continue;
+                for (k = 0; k < 4; k++) {
+                    S32 tx = sx + (k & 1), ty = sy + (k >> 1);
+                    double wgt = ((k & 1) ? fx : 1.0 - fx) * ((k >> 1) ? fy : 1.0 - fy);
+                    if (tx < 0 OR ty < 0 OR tx >= w OR ty >= h)
+                        continue;
+                    acc += wgt * mask[ty * w + tx];
+                }
+                if (acc >= 1.0)
+                    Blend(&frameBuffer[py * pitchPixels + px], c, c, c, (U32)(acc * maxA / 255.0));
+            }
+        }
+    }
 }
 
 /* `icon` scaled to `size` pixels square, centred on (cx, cy). */
@@ -185,6 +239,17 @@ void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const
     halo = radius + (radius + 3) / 4;
     cx = (S32)width - halo - (S32)height / 40 - 1;
     cy = halo + (S32)height / 40;
+
+    /* A word beside it moves the button left by the word's width. */
+    if (s_label != ACTION_HINT_LABEL_NONE AND(U32)(g_platform.system.ticks_ms() - s_labelMs) <= ACTION_HINT_HOLD_MS) {
+        const U8 *mask = s_label == ACTION_HINT_LABEL_CLIMB_ES ? kLabelClimbEs : kLabelClimbEn;
+        S32 w = s_label == ACTION_HINT_LABEL_CLIMB_ES ? kLabelClimbEs_W : kLabelClimbEn_W;
+        S32 textH = radius * 3 / 2;
+        S32 textW = w * textH / ACTION_HINT_LABEL_H;
+        cx -= textW + radius / 2;
+        DrawLabel(frameBuffer, pitchPixels, (S32)width, (S32)height, mask, w, ACTION_HINT_LABEL_H,
+                  cx + halo + radius / 3, cy, textH);
+    }
 
     /* A faint white disc behind the button, so it stands out on dark scenery. */
     for (y = cy - halo - 1; y <= cy + halo + 1; y++) {
