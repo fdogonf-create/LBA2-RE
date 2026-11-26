@@ -31,6 +31,7 @@ extern Func_CopyFrameDoubleXY *CopyFrameDoubleXY;
 // PLAYACF.CPP
 
 //▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+extern char *ListAcf; /* the cinematics' names, as RESS.HQR lists them */
 extern void InitAcf(void);
 extern void ResetAcfList(void);
 //▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
@@ -53,6 +54,10 @@ extern S32 PlayAcf(const char *name);
    disarm. No-op in null-video-backend builds. Used by the console
    `ui video <name> <path>` verb. */
 extern void Video_RequestCapture(const char *path);
+
+/* Whether a high-definition replacement (video/hd/) would play for this
+   cinematic. Always false on a backend that cannot show one. */
+extern S32 Video_HasHdReplacement(const char *name);
 
 #ifdef USE_MVIDEO_SMACKER
 void VideoLogEnable(int enable);
