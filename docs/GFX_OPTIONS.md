@@ -11,7 +11,7 @@ All four are off by default, so a stock run renders exactly as before. Three of 
 | Texture filtering | Texture filter | `gfx_texfilter` | `TextureFilter` | `LBA2_TEXFILTER` | 0 off, 1 horizontal 2-tap, 2 bilinear 4-tap |
 | Dithered shading | Dithered shading | `gfx_dither` | `DitherShading` | (none) | 0 off, 1 on |
 | Interior render scaling | (none) | (none) | (none) | `LBA2_ISO_DIV` | 1 off, 2 to 4 |
-| Present filter | Scaling | `gfx_presentfilter` | `PresentFilter` | `LBA2_PRESENT_FILTER` | 0 nearest, 1 linear, 2 pixelart |
+| Present filter | Scaling | `gfx_presentfilter` | `PresentFilter` | `LBA2_PRESENT_FILTER` | 0 nearest, 1 linear, 2 pixelart, 3 smooth, 4 crt, 5 smoothcrt |
 
 **Texture filtering** smooths magnified texels on terrain, sea, and sky. The rasterizer works in palette indices, where averaging two entries is meaningless, so the blend is a precomputed table of the nearest palette index to each 25/50/75% RGB mix. Costs roughly 7% of frame time on terrain and 4% on a sea-heavy view at 1728x1080 with the 4-tap setting.
 
@@ -26,6 +26,8 @@ LBA2_ISO_DIV=2 ./lba2cc
 ```
 
 **Present filter** chooses the filter that stretches the finished frame to the window. Nearest is the original output, and it is uneven whenever the window is not a whole multiple of the resolution: 1728x1080 on a 3840x2400 display is 20/9, so a source pixel is two output pixels wide in one place and three in the next. Linear removes that by blurring everything, the HUD and text included. Pixelart keeps the inside of each pixel sharp and blends only the seam between two of them.
+
+Smooth, CRT and smooth + CRT are shader filters, drawn by a GLES2 program of the SDL2 backend's own ([GLFILTER.CPP](../LIB386/PLATFORM/SDL2/GLFILTER.CPP)) in place of SDL's copy, so they exist only where SDL2 draws with its `opengles2` renderer: the Switch build, or a desktop build made with `-DLBA2_SDL2_GL_FILTERS=1` and run with `SDL_RENDER_DRIVER=opengles2`. There the same program also provides pixelart, which SDL2 itself lacks. Smooth is pixelart with FXAA run in the frame's own texels, so it softens the stairs along polygon edges and leaves flat areas sharp. CRT draws soft gaps between the frame's lines, a faint RGB stripe mask and a light vignette, brightened to make up for the darkening; the gaps fade where a line is under two output pixels tall, where they would only beat against the pixel grid. Smooth + CRT does both. Elsewhere the backend refuses them and the Scaling row steps past them. Each costs well under a millisecond of GPU time; none touches the CPU's frame.
 
 Interior render scaling relies on this same stretch to bring a divided interior back to the window, so the filter also decides how those rooms look.
 

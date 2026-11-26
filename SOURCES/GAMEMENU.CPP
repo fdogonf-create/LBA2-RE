@@ -568,9 +568,12 @@ static void BuildCustomMenuText(S32 num, char *string) {
     case MENU_ID_PRESENT_FILTER: {
         const S32 v = RenderRowValue(num);
         CopyUtf8ToCp850(string, 256,
-                        GetLocalizedMenuLabel(v == PLATFORM_FILTER_PIXELART ? MENU_LABEL_PRESENT_PIXELART
-                                              : v == PLATFORM_FILTER_LINEAR ? MENU_LABEL_PRESENT_LINEAR
-                                                                            : MENU_LABEL_PRESENT_NEAREST));
+                        GetLocalizedMenuLabel(v == PLATFORM_FILTER_SMOOTH_CRT ? MENU_LABEL_PRESENT_SMOOTH_CRT
+                                              : v == PLATFORM_FILTER_CRT      ? MENU_LABEL_PRESENT_CRT
+                                              : v == PLATFORM_FILTER_SMOOTH   ? MENU_LABEL_PRESENT_SMOOTH
+                                              : v == PLATFORM_FILTER_PIXELART ? MENU_LABEL_PRESENT_PIXELART
+                                              : v == PLATFORM_FILTER_LINEAR   ? MENU_LABEL_PRESENT_LINEAR
+                                                                              : MENU_LABEL_PRESENT_NEAREST));
         break;
     }
 

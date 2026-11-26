@@ -137,7 +137,10 @@ typedef void (*PlatformLogFn)(void *userdata, PlatformLogLevel level, const char
 typedef enum PlatformPresentFilter {
     PLATFORM_FILTER_NEAREST = 0,
     PLATFORM_FILTER_LINEAR = 1,
-    PLATFORM_FILTER_PIXELART = 2 /* crisp texel interiors, interpolated seams */
+    PLATFORM_FILTER_PIXELART = 2, /* crisp texel interiors, interpolated seams */
+    PLATFORM_FILTER_SMOOTH = 3,   /* pixel art, with the stairs on edges smoothed (FXAA) */
+    PLATFORM_FILTER_CRT = 4,      /* an old TV: scanlines, stripe mask, vignette */
+    PLATFORM_FILTER_SMOOTH_CRT = 5
 } PlatformPresentFilter;
 
 typedef struct PlatformCapabilities {

@@ -1,5 +1,7 @@
 #include "PRIVATE.H"
 
+#include "GLFILTER.H"
+
 #include <limits.h>
 
 namespace {
@@ -13,6 +15,7 @@ uint32_t s_videoWidth = 0, s_videoHeight = 0;
 uint32_t s_width = 0, s_height = 0;
 bool s_fullscreen = false;
 SDL_ScaleMode s_scaleMode = SDL_ScaleModeNearest;
+int s_glFilter = -1; /* LBA2_GL_FILTER_*, or -1 for SDL's own copy */
 #ifdef LBA2_SDL2_TESTS
 void (*s_presentProbe)(SDL_Renderer *) = NULL;
 int (*s_fullscreenProbe)(SDL_Window *, Uint32) = NULL;
@@ -53,8 +56,16 @@ bool PresentTexture() {
     if (SDL_GetRendererOutputSize(s_renderer, &width, &height) != 0)
         return Error("Unable to query SDL2 render dimensions");
     const SDL_Rect area = Viewport(width, height);
-    if (SDL_SetRenderDrawColor(s_renderer, 0, 0, 0, 255) != 0 ||
-        SDL_RenderClear(s_renderer) != 0 || SDL_RenderCopy(s_renderer, s_texture, NULL, &area) != 0)
+    if (SDL_SetRenderDrawColor(s_renderer, 0, 0, 0, 255) != 0 || SDL_RenderClear(s_renderer) != 0)
+        return Error("Unable to present SDL2 frame");
+    bool drawn = false;
+#if LBA2_SDL2_GL_FILTERS
+    /* A shader filter that cannot draw (no GLES2, a shader the driver refused)
+       falls back to the plain linear copy its texture is set up for. */
+    if (s_glFilter >= 0)
+        drawn = SDL2_GLFilterDraw(s_renderer, s_texture, s_glFilter, s_width, s_height, &area, height);
+#endif
+    if (!drawn && SDL_RenderCopy(s_renderer, s_texture, NULL, &area) != 0)
         return Error("Unable to present SDL2 frame");
 #ifdef LBA2_SDL2_TESTS
     if (s_presentProbe)
@@ -164,6 +175,9 @@ void SDL2_DestroyWindow() {
     s_videoTexture = NULL;
     s_videoWidth = s_videoHeight = 0;
     SDL_DestroyTexture(s_texture);
+#if LBA2_SDL2_GL_FILTERS
+    SDL2_GLFilterForget(s_renderer);
+#endif
     SDL_DestroyRenderer(s_renderer);
     SDL_DestroyWindow(s_window);
     s_texture = NULL;
@@ -240,6 +254,7 @@ void SDL2_SetVSync(bool enabled) {
 }
 bool SDL2_SetPresentFilter(PlatformPresentFilter mode) {
     SDL_ScaleMode resolved;
+    int glFilter = -1;
     switch (mode) {
     case PLATFORM_FILTER_NEAREST:
         resolved = SDL_ScaleModeNearest;
@@ -248,16 +263,37 @@ bool SDL2_SetPresentFilter(PlatformPresentFilter mode) {
         resolved = SDL_ScaleModeLinear;
         break;
     case PLATFORM_FILTER_PIXELART:
-        SDL_SetError("SDL2 does not support the pixelart present filter");
+    case PLATFORM_FILTER_SMOOTH:
+    case PLATFORM_FILTER_CRT:
+    case PLATFORM_FILTER_SMOOTH_CRT:
+#if LBA2_SDL2_GL_FILTERS
+        /* Before the window exists the renderer cannot be asked; the filter is
+           taken, and the first present falls back to linear if it cannot draw. */
+        if (s_renderer && !SDL2_GLFilterAvailable(s_renderer)) {
+            SDL_SetError("The %s present filter needs SDL's opengles2 renderer",
+                         mode == PLATFORM_FILTER_PIXELART ? "pixelart" : "shader");
+            return false;
+        }
+        resolved = SDL_ScaleModeLinear;
+        glFilter = mode == PLATFORM_FILTER_PIXELART ? LBA2_GL_FILTER_PIXELART
+                   : mode == PLATFORM_FILTER_SMOOTH ? LBA2_GL_FILTER_SMOOTH
+                   : mode == PLATFORM_FILTER_CRT    ? LBA2_GL_FILTER_CRT
+                                                    : LBA2_GL_FILTER_SMOOTH_CRT;
+        break;
+#else
+        SDL_SetError("SDL2 does not support the %s present filter",
+                     mode == PLATFORM_FILTER_PIXELART ? "pixelart" : "shader");
         return false;
+#endif
     default:
         SDL_SetError("Unknown present filter %d", (int)mode);
         return false;
     }
     if (s_texture && SDL_SetTextureScaleMode(s_texture, resolved) != 0)
         return false;
-    const bool changed = resolved != s_scaleMode;
+    const bool changed = resolved != s_scaleMode || glFilter != s_glFilter;
     s_scaleMode = resolved;
+    s_glFilter = glFilter;
     if (changed && s_renderer && s_texture)
         PresentTexture();
     return true;

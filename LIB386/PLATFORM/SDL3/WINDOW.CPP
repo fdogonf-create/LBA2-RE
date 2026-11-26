@@ -62,6 +62,10 @@ bool ResolveScaleMode(PlatformPresentFilter mode, SDL_ScaleMode *out) {
         }
 #endif
         return SDL_SetError("The pixelart filter needs SDL 3.4 or newer");
+    case PLATFORM_FILTER_SMOOTH:
+    case PLATFORM_FILTER_CRT:
+    case PLATFORM_FILTER_SMOOTH_CRT:
+        return SDL_SetError("The shader present filters are in the SDL2 backend only");
     }
     return SDL_SetError("Unknown present filter %d", (int)mode);
 }

@@ -131,10 +131,10 @@ static void ApplyDetailLevel(S32 level) {
 
 /* LBA2_PRESENT_FILTER takes the names, or the numbers the cfg and console use. */
 static S32 ParsePresentFilter(const char *text) {
-    static const char *const names[] = {"nearest", "linear", "pixelart"};
+    static const char *const names[] = {"nearest", "linear", "pixelart", "smooth", "crt", "smoothcrt"};
     S32 i;
 
-    for (i = PLATFORM_FILTER_NEAREST; i <= PLATFORM_FILTER_PIXELART; i++) {
+    for (i = PLATFORM_FILTER_NEAREST; i <= PLATFORM_FILTER_SMOOTH_CRT; i++) {
         const bool isNumber = (text[0] == '0' + i AND text[1] == '\0');
         if (isNumber OR !strcasecmp(text, names[i]))
             return i;
@@ -176,8 +176,8 @@ static const T_SETTING BootSettings[] = {
      POLY_TEX_FILTER_OFF, POLY_TEX_FILTER_BILINEAR, &StoredTexFilter, ForcedTexFilter, NULL, &SourceTexFilter,
      "Texture filtering: 0 off, 1 horizontal, 2 bilinear", SETTING_NOT_RECORDED},
     {"PresentFilter", NULL, "gfx_presentfilter", &DisplayPresentFilter, SETTING_OR_DEFAULT, PLATFORM_FILTER_NEAREST,
-     PLATFORM_FILTER_NEAREST, PLATFORM_FILTER_PIXELART, &StoredPresentFilter, ForcedPresentFilter, ApplyPresentFilter,
-     &SourcePresentFilter, "Filter stretching the frame to the window: 0 nearest, 1 linear, 2 pixelart",
+     PLATFORM_FILTER_NEAREST, PLATFORM_FILTER_SMOOTH_CRT, &StoredPresentFilter, ForcedPresentFilter, ApplyPresentFilter,
+     &SourcePresentFilter, "Filter stretching the frame to the window: 0 nearest, 1 linear, 2 pixelart, 3 smooth, 4 crt, 5 smooth+crt",
      SETTING_NOT_RECORDED},
     {"FixedTimestep", NULL, NULL, &FixedTimestep, SETTING_OR_DEFAULT, 16, 0, 100,
      &StoredFixedTimestep, ForcedFixedTimestep, NULL, &SourceFixedTimestep, NULL, SETTING_NOT_RECORDED},
