@@ -378,7 +378,8 @@ static void PushCurrentFrameVideoAudio(smk smkObject, const int *tracksToPlay, i
 /* ── Full-colour replacement cinematics ─────────────────────────────────────
    A movie may be replaced by an MPEG-1 program stream (mpeg1video + mp2) at
    video/hd/<name>.mpg, or video/hd/<name>_<voice>.mpg to follow the voice
-   language (en, fr, de, sp, it, po). The file carries its own mixed audio.
+   language (en, fr, de, sp, it, po), tried first; <name>_en.mpg is the last
+   resort. The file carries its own mixed audio.
    Without such a file, or on a backend that cannot show full-colour frames,
    the original Smacker movie plays. */
 
@@ -400,6 +401,12 @@ static bool FindHdMovie(const char *name, char *outPath, U16 outSize) {
             return true;
     }
     snprintf(file, sizeof(file), "hd" ADELINE_PATH_SEP "%s.mpg", base);
+    GetMoviePath(outPath, outSize, file);
+    if (ExistsFileOrDir(outPath))
+        return true;
+    /* A voice language with no movie of its own (no release has Spanish
+       voices, for one) takes the English one, as the Smacker path does. */
+    snprintf(file, sizeof(file), "hd" ADELINE_PATH_SEP "%s_en.mpg", base);
     GetMoviePath(outPath, outSize, file);
     return ExistsFileOrDir(outPath);
 }
