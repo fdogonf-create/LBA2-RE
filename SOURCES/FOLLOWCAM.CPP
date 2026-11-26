@@ -38,6 +38,7 @@ S32 FollowCamGround = FOLLOW_CAM_GROUND_DEFAULT;
 S32 FollowCamGroundClearance = FOLLOW_CAM_GROUND_CLEARANCE_DEFAULT;
 S32 FollowCamManualHoldFrames = FOLLOW_CAM_MANUAL_HOLD_DEFAULT;
 S32 FollowCamHoldAngle = FOLLOW_CAM_HOLD_ANGLE_DEFAULT;
+S32 FollowCamCollide = FOLLOW_CAM_COLLIDE_DEFAULT;
 S32 FollowCamZoneReturn = FOLLOW_CAM_ZONE_RETURN_DEFAULT;
 S32 FollowCamZoneAnchor = FOLLOW_CAM_ZONE_ANCHOR_DEFAULT;
 S32 FollowCamZoneHeight = FOLLOW_CAM_ZONE_HEIGHT_DEFAULT;
@@ -662,6 +663,55 @@ static S32 FollowCamNeededPitch(T_OBJ_3D *ptr3d) {
     return needed;
 }
 
+/* cam_collide. How long the boom may be before its eye would stand inside a
+ * building: the same march out from the hero as SearchCameraPos makes, at the
+ * player's own pitch and the yaw about to be rendered, but asking only of the
+ * scenery boxes, and answering with a distance rather than a pitch. Terrain is
+ * left to the ground lift and the obstruction search, which tilt over it.
+ * Returns `want` when nothing is in the way, never less than
+ * FOLLOW_CAM_COLLIDE_MIN. */
+static S32 FollowCamFreeDist(T_OBJ_3D *ptr3d, S32 want) {
+    S32 saveX0 = X0, saveY0 = Y0, saveZ0 = Z0;
+    S32 searchbeta = 2048 - BetaCam;
+    S32 freeDist = want;
+    S32 n;
+
+    for (n = FOLLOW_CAM_COLLIDE_FIRST; n < want; n += FOLLOW_CAM_COLLIDE_STEP) {
+        S32 ex, ey, ez, i;
+        T_DECORS *ptrdec = ListDecors;
+        S32 hit = FALSE;
+
+        Rotate(n, 0, AlphaCam);
+        ey = (ptr3d->Y + 512) - Z0;
+        Rotate(0, -X0, searchbeta);
+        ex = ptr3d->X + X0;
+        ez = ptr3d->Z + Z0;
+        if (ex < 0 OR ex > 32768 OR ez < 0 OR ez > 32768)
+            break;
+
+        for (i = 0; i < NbObjDecors; i++, ptrdec++) {
+            if (TestZVDecors(ex, ey, ez, ptrdec)) {
+                hit = TRUE;
+                break;
+            }
+        }
+        if (hit) {
+            freeDist = n - FOLLOW_CAM_COLLIDE_STEP;
+            break;
+        }
+    }
+
+    X0 = saveX0;
+    Y0 = saveY0;
+    Z0 = saveZ0;
+
+    if (freeDist < FOLLOW_CAM_COLLIDE_MIN)
+        freeDist = FOLLOW_CAM_COLLIDE_MIN;
+    if (freeDist > want)
+        freeDist = want;
+    return freeDist;
+}
+
 /* cam_world_anchor. The update aims behind the hero, offset by AddBetaCam, so a
  * turn of his moves the target by as much. With the setting on, the turn he has
  * made since the last update is taken back out of the offset, which leaves the
@@ -1019,6 +1069,17 @@ void UpdateFollowCameraExt(void) {
                 FollowCamEffectiveDist -= FOLLOW_CAM_SPRING_RECOVER;
                 if (FollowCamEffectiveDist < FollowCamBaseDist)
                     FollowCamEffectiveDist = FollowCamBaseDist;
+            }
+
+            /* Camera collision (cam_collide): with a building behind the hero,
+             * the arm comes in at once to just short of it rather than the
+             * eye going inside or the view tilting slowly over the roof, and
+             * the spring above lets it back out to the chosen zoom as the
+             * building is left behind. */
+            if (FollowCamCollide) {
+                S32 freeDist = FollowCamFreeDist(ptr3d, FollowCamEffectiveDist);
+                if (freeDist < FollowCamEffectiveDist)
+                    FollowCamEffectiveDist = freeDist;
             }
 
             /* HD recompose (render-time only; logical AlphaCam and
@@ -2086,6 +2147,9 @@ static const T_SETTING FollowCamSettings[] = {
     {"FollowCamHoldAngle", NULL, "cam_hold_angle", &FollowCamHoldAngle, SETTING_TRUTHY,
      FOLLOW_CAM_HOLD_ANGLE_DEFAULT, 0, 1, NULL, NULL, NULL, NULL,
      "Hold the manual camera rotation (free-camera); off = it comes back behind the hero as he walks", SETTING_RECORDED, SETTING_BEFORE_NONE},
+    {"FollowCamCollide", NULL, "cam_collide", &FollowCamCollide, SETTING_TRUTHY,
+     FOLLOW_CAM_COLLIDE_DEFAULT, 0, 1, NULL, NULL, NULL, NULL,
+     "Auto cam: bring the arm in short of a building behind the hero instead of tilting over it", SETTING_RECORDED, SETTING_BEFORE(0)},
     /* The zoom the player chose, kept from one run to the next. 0 is none
      * chosen: the first frame takes FOLLOW_CAM_INITIAL_DIST, and so does any
      * value under FOLLOW_CAM_DIST_MIN. Only the picture's distance, so a replay

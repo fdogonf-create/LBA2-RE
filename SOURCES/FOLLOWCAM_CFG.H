@@ -301,6 +301,20 @@
 #define FOLLOW_CAM_OBSTRUCT_HIDDEN_STEP 20   /* extra pitch added per frame he is still hidden (AlphaCam units) */
 #define FOLLOW_CAM_OBSTRUCT_FLOOR_REACH 2048 /* distance on either axis over which a floor is kept (world units, four bricks) */
 
+/* Camera collision (Auto camera only; community) ----------------------------*/
+/* On, a building (a scenery box) between the hero and the eye brings the arm in
+ * to just short of it at once, and the spring arm takes it back out to the
+ * chosen zoom once there is room, as third-person cameras do; the obstruction
+ * clearance above then has nothing left to tilt over. Off keeps the classic
+ * answer, the view tilting down over the roof. Off by default; a build with
+ * LBA2_MODERN_GAMEPAD turns it on. cvar cam_collide. */
+#ifndef FOLLOW_CAM_COLLIDE_DEFAULT
+#define FOLLOW_CAM_COLLIDE_DEFAULT 0
+#endif
+#define FOLLOW_CAM_COLLIDE_FIRST 1000 /* first point tested out from the hero, as SearchCameraPos */
+#define FOLLOW_CAM_COLLIDE_STEP 512   /* march step: a brick, as SearchCameraPos */
+#define FOLLOW_CAM_COLLIDE_MIN 3000   /* never in closer than this (world units) */
+
 /* Gamepad right-stick camera ------------------------------------------------*/
 /* Default right-stick sensitivity (1-10 range). A pad-only build
  * (LBA2_MODERN_GAMEPAD) sets its own, with the squared response curve. */

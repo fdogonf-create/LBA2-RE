@@ -50,6 +50,7 @@ When a default changes, an `lba2.cfg` written by an earlier version moves to it 
 | --- | --- | --- | --- | --- |
 | `cam_follow` | `FollowCamera` | 0 | The Auto camera itself | the classic camera |
 | `cam_hold_angle` | `FollowCamHoldAngle` | 0 (1 with `LBA2_MODERN_GAMEPAD`, as on Switch) | 1: keeps the angle you orbit to until you press Enter | comes back behind Twinsen as he walks |
+| `cam_collide` | `FollowCamCollide` | 0 (1 with `LBA2_MODERN_GAMEPAD`, as on Switch) | 1: with a building behind Twinsen the camera comes in short of it at once, and goes back out to your zoom when there is room | the view tilts down over the building instead |
 | `cam_distance` | `FollowCamDistance` | 0 | The zoom you chose, kept between sessions; 0 is the middle distance | the zoom starts at the middle distance every session |
 | `cam_ease_ms` | `FollowCamEaseMs` | 300 | How quickly the camera comes round behind Twinsen, in milliseconds (600 is the earlier pace) | 0: the earlier per-frame follow, which can stop up to a degree short |
 | `cam_target_ms` | `FollowCamTargetMs` | 300 | How far the view trails Twinsen, in milliseconds | 0: the view pinned to him |
