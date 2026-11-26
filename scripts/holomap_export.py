@@ -69,13 +69,28 @@ def expand_lz(src, size, min_bloc):
     return bytes(dst)
 
 
-def hqr_entry(data, index):
+def hqr_header(data, index):
+    """(size, compressed size, method) of an entry, or None when it has none."""
+    (count,) = struct.unpack_from("<I", data, 0)
+    if index >= count // 4:
+        return None
     (offset,) = struct.unpack_from("<I", data, index * 4)
-    size, csize, method = struct.unpack_from("<IIh", data, offset)
-    body = data[offset + 10:]
+    if offset <= 0 or offset + 10 > len(data):
+        return None
+    return struct.unpack_from("<IIh", data, offset) + (offset,)
+
+
+def hqr_entry(data, index):
+    header = hqr_header(data, index)
+    if header is None:
+        return None
+    size, csize, method, offset = header
+    body = data[offset + 10:offset + 10 + (size if method == 0 else csize)]
     if method == 0:
-        return body[:size]
-    return expand_lz(body[:csize], size, method + 1)
+        return body
+    if method > 2:
+        return None
+    return expand_lz(body, size, method + 1)
 
 
 def write_png(path, pixels, palette):
@@ -107,16 +122,44 @@ def main():
         holo = f.read()
     with open(find(game, "ress.hqr"), "rb") as f:
         palette = hqr_entry(f.read(), 0)[:768]  # RESS_PAL, the game palette
+    saved = 0
     for n in range(MAP_COUNT):
         index = FIRST_MAP + 2 * n
-        pixels = hqr_entry(holo, index)
-        if len(pixels) < WIDTH * HEIGHT:
-            print("skipped entry %d: not a 640x480 picture" % index)
+        header = hqr_header(holo, index)
+        try:
+            pixels = hqr_entry(holo, index)
+        except IndexError:
+            pixels = None
+        if pixels is None or len(pixels) < WIDTH * HEIGHT:
+            print("skipped entry %d (%s): not a 640x480 picture, header %s"
+                  % (index, NAMES[n], header))
             continue
         path = os.path.join(out, "holomap_%d.png" % index)
         write_png(path, pixels, palette)
         print("%s  (%s)" % (path, NAMES[n]))
-
+        saved += 1
+    if saved < MAP_COUNT:
+        # Another release may keep the maps elsewhere: save every 640x480
+        # picture in the file, named by its entry, so none is lost.
+        (count,) = struct.unpack_from("<I", holo, 0)
+        expected = set(FIRST_MAP + 2 * n for n in range(MAP_COUNT))
+        for index in range(count // 4):
+            if index in expected:
+                continue
+            header = hqr_header(holo, index)
+            if header is None or header[0] != WIDTH * HEIGHT:
+                continue
+            try:
+                pixels = hqr_entry(holo, index)
+            except IndexError:
+                continue
+            if pixels is None:
+                continue
+            path = os.path.join(out, "holomap_%d.png" % index)
+            write_png(path, pixels, palette)
+            print("%s  (extra picture found at entry %d)" % (path, index))
+            saved += 1
+    print("%d maps saved in %s" % (saved, out))
 
 if __name__ == "__main__":
     main()
