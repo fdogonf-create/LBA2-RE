@@ -56,8 +56,10 @@ void HoloHD_Begin(S32 entry, S32 x0, S32 y0, const U8 *palette) {
     snprintf(name, sizeof(name), "hd/holomap_%d.png", (int)entry);
     GetResPath(path, ADELINE_MAX_PATH, name);
     s_argb = LoadPNG_ARGB(path, &w, &h);
-    if (s_argb == NULL)
+    if (s_argb == NULL) {
+        LogPrintf("holomap: no redrawn map at %s, showing the original\n", path);
         return;
+    }
     s_key = (U8 *)malloc((size_t)IMAGE_AUTHORED_WIDTH * IMAGE_AUTHORED_HEIGHT);
     if (s_key == NULL) {
         HoloHD_End();
