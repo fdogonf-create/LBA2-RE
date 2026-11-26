@@ -188,7 +188,8 @@ typedef struct PlatformWindow {
        is unfocused and puts it back on focus, as it does relative mode. */
     void (*set_mouse_grab)(bool enabled);
     bool (*present)(const PlatformFrame *frame);
-    /* Optional: NULL on a backend that can only show indexed frames. */
+    /* False on a backend that can only show indexed frames; the caller then
+       shows its indexed fallback. */
     bool (*present_rgb)(const PlatformRgbFrame *frame);
 } PlatformWindow;
 

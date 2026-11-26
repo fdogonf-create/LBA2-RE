@@ -109,6 +109,9 @@ bool Present(const PlatformFrame *frame) {
         frame->overlay(s_pixels, s_width * sizeof(uint32_t), s_width, s_height, frame->palette_rgb);
     return true;
 }
+bool PresentRgb(const PlatformRgbFrame *) {
+    return Fail("Null platform has no full-colour presentation");
+}
 bool Poll(PlatformEvent *event) {
     if (!event)
         Fail("Null platform event output is missing");
@@ -265,6 +268,7 @@ PlatformInterface Interface() {
     api.window.set_relative_mouse = DeviceMode;
     api.window.set_mouse_grab = DeviceMode;
     api.window.present = Present;
+    api.window.present_rgb = PresentRgb;
     api.input.keyboard_state = Keyboard;
     api.input.keycode = Keycode;
     api.input.scancode_name = KeyName;

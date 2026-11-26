@@ -425,7 +425,7 @@ static bool PushHdAudio(plm_t *plm, double until, double lead, double *audioTime
     return true;
 }
 
-static void PresentHd(U32 *rgb, int w, int h, S32 dstX, S32 dstY, S32 dstW, S32 dstH) {
+static void PresentHd(uint32_t *rgb, int w, int h, S32 dstX, S32 dstY, S32 dstW, S32 dstH) {
     PlatformRgbFrame frame;
     frame.pixels = rgb;
     frame.width = (uint32_t)w;
@@ -442,7 +442,19 @@ static void PresentHd(U32 *rgb, int w, int h, S32 dstX, S32 dstY, S32 dstW, S32 
    touched nothing, when the original should play instead. */
 static bool PlayHdMovie(const char *name, S32 *outKey) {
     char path[ADELINE_MAX_PATH];
-    if (!g_platform.window.present_rgb || !FindHdMovie(name, path, ADELINE_MAX_PATH))
+    if (!FindHdMovie(name, path, ADELINE_MAX_PATH))
+        return false;
+    /* A backend without full-colour presentation refuses this black pixel;
+       the original movie plays instead. */
+    const uint32_t black = 0xFF000000u;
+    PlatformRgbFrame probe;
+    probe.pixels = &black;
+    probe.width = probe.height = 1;
+    probe.pitch = 4;
+    probe.dst_x = probe.dst_y = 0;
+    probe.dst_w = (int32_t)ModeDesiredX;
+    probe.dst_h = (int32_t)ModeDesiredY;
+    if (!g_platform.window.present_rgb(&probe))
         return false;
 
     plm_t *plm = plm_create_with_filename(path);
@@ -458,7 +470,7 @@ static bool PlayHdMovie(const char *name, S32 *outKey) {
     double fps = plm_get_framerate(plm);
     if (fps <= 0.0)
         fps = 30.0;
-    U32 *rgb = (w > 0 && h > 0) ? (U32 *)malloc((size_t)w * (size_t)h * 4u) : NULL;
+    uint32_t *rgb = (w > 0 && h > 0) ? (uint32_t *)malloc((size_t)w * (size_t)h * 4u) : NULL;
     if (!rgb) {
         plm_destroy(plm);
         return false;
@@ -574,10 +586,10 @@ static bool PlayHdMovie(const char *name, S32 *outKey) {
         const size_t count = (size_t)w * (size_t)h;
         for (int step = 7; step >= 0; step--) {
             for (size_t i = 0; i < count; i++) {
-                const U32 p = rgb[i];
-                const U32 r = ((p >> 16) & 0xFF) * (U32)step / 8u;
-                const U32 g = ((p >> 8) & 0xFF) * (U32)step / 8u;
-                const U32 b = (p & 0xFF) * (U32)step / 8u;
+                const uint32_t p = rgb[i];
+                const uint32_t r = ((p >> 16) & 0xFFu) * (uint32_t)step / 8u;
+                const uint32_t g = ((p >> 8) & 0xFFu) * (uint32_t)step / 8u;
+                const uint32_t b = (p & 0xFFu) * (uint32_t)step / 8u;
                 rgb[i] = 0xFF000000u | (r << 16) | (g << 8) | b;
             }
             PresentHd(rgb, w, h, dstX, dstY, dstW, dstH);
