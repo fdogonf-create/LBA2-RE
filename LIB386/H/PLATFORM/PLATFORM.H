@@ -92,6 +92,21 @@ typedef struct PlatformFrame {
     PlatformOverlayFn overlay;
 } PlatformFrame;
 
+/* One frame of a full-colour movie: planar YUV 4:2:0 (I420, BT.601 limited
+   range, as MPEG-1 decodes), converted on the GPU. dst_* is a rectangle of the
+   framebuffer in framebuffer pixels; fill_display instead covers the whole
+   display, cropping the frame to its aspect. brightness scales the image
+   (255 = as decoded) for fades. Everything outside the image is black. The
+   planes are borrowed for this call only. */
+typedef struct PlatformVideoFrame {
+    const uint8_t *y, *u, *v;
+    uint32_t y_pitch, uv_pitch;
+    uint32_t width, height;
+    int32_t dst_x, dst_y, dst_w, dst_h;
+    bool fill_display;
+    uint8_t brightness;
+} PlatformVideoFrame;
+
 typedef struct PlatformGamepad PlatformGamepad;
 typedef struct PlatformFolderDialog PlatformFolderDialog;
 
@@ -179,6 +194,9 @@ typedef struct PlatformWindow {
        is unfocused and puts it back on focus, as it does relative mode. */
     void (*set_mouse_grab)(bool enabled);
     bool (*present)(const PlatformFrame *frame);
+    /* False on a backend that can only show indexed frames; the caller then
+       shows its indexed fallback. */
+    bool (*present_video)(const PlatformVideoFrame *frame);
 } PlatformWindow;
 
 typedef struct PlatformInput {

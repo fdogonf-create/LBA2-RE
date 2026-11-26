@@ -209,7 +209,7 @@ if(VITA)
 endif()
 if(MVIDEO_BACKEND STREQUAL "smacker")
   target_sources(${LBA2_EXECUTABLE_NAME} PRIVATE VIDEO_SOURCE.CPP)
-  target_link_libraries(${LBA2_EXECUTABLE_NAME} PRIVATE libsmacker video_audio_resample)
+  target_link_libraries(${LBA2_EXECUTABLE_NAME} PRIVATE libsmacker pl_mpeg video_audio_resample)
 endif()
 
 # Configure all ASM files to be recognized as such (workaround for bug where .ASM uppercase extension is not recognized)

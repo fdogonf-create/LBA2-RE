@@ -32,6 +32,7 @@ endif()
 
 if(MVIDEO_BACKEND STREQUAL "smacker")
   add_subdirectory(libsmacker)
+  add_subdirectory(pl_mpeg)
 endif()
 
 if(MVIDEO_BACKEND STREQUAL "smacker" OR LBA2_BUILD_TESTS)

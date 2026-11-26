@@ -164,7 +164,7 @@ static const T_SETTING BootSettings[] = {
     {"FollowCamera", "AutoCameraCenter", NULL, &FollowCamera, SETTING_OR_DEFAULT, LBA2_FOLLOW_CAMERA_DEFAULT, 0, 1, NULL, NULL, NULL},
     {"DetailLevel", NULL, NULL, &DetailLevel, SETTING_CLAMP, MAX_DETAIL_LEVEL, 0, MAX_DETAIL_LEVEL, NULL, NULL,
      ApplyDetailLevel},
-    {"FullScreen", NULL, NULL, &VideoFullScreen, SETTING_OR_DEFAULT, TRUE, 0, 1, NULL, NULL, NULL, NULL, NULL,
+    {"FullScreen", NULL, NULL, &VideoFullScreen, SETTING_OR_DEFAULT, TRUE, 0, 2, NULL, NULL, NULL, NULL, NULL,
      SETTING_NOT_RECORDED},
     {"DisplayFullScreen", NULL, NULL, &DisplayFullScreen, SETTING_OR_DEFAULT, TRUE, 0, 1, NULL, NULL, NULL, NULL, NULL,
      SETTING_NOT_RECORDED},

@@ -67,7 +67,7 @@ cmake --build "$build_dir" --target lba2cc -j"$(nproc)" > "$build_dir/build.log"
 current=$(mktemp)
 grep -E '^/.*warning:' "$build_dir/build.log" |
     sed -E "s#^${repo_root}/##" |
-    grep -vE '^(LIB386/libsmacker/|LIB386/AIL/SDL/stb_|/)' |
+    grep -vE '^(LIB386/libsmacker/|LIB386/pl_mpeg/|LIB386/AIL/SDL/stb_|/)' |
     sed -E 's/^([^:]+:[0-9]+:[0-9]+): warning: .*(\[-W[a-z0-9=+-]+\])$/\1 \2/' |
     grep -E '\[-W[a-z0-9=+-]+\]$' |
     sort -u |

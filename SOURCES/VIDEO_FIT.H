@@ -3,7 +3,8 @@
 
 /* Destination rectangle for the 320x200 Smacker cinematic upscale.
 
-   Two policies, selected by fitToFrame (the VideoFullScreen cfg flag):
+   Two policies, selected by fitToFrame (the VideoFullScreen cfg flag; its
+   value 2, which only changes full-colour replacement movies, fits here):
 
      0 - centred letterbox (legacy): fixed 2x upscale to 640x400, centred in
          the framebuffer with black bars. Byte-identical to the pre-fit player

@@ -8,6 +8,8 @@ const char *s_title = NULL;
 SDL_Window *s_window = NULL;
 SDL_Renderer *s_renderer = NULL;
 SDL_Texture *s_texture = NULL;
+SDL_Texture *s_videoTexture = NULL; /* movie frames (IYUV), sized to the source */
+uint32_t s_videoWidth = 0, s_videoHeight = 0;
 uint32_t s_width = 0, s_height = 0;
 bool s_fullscreen = false;
 SDL_ScaleMode s_scaleMode = SDL_ScaleModeNearest;
@@ -158,6 +160,9 @@ bool SDL2_ResizeWindow(uint32_t width, uint32_t height, bool keepSize) {
     return true;
 }
 void SDL2_DestroyWindow() {
+    SDL_DestroyTexture(s_videoTexture);
+    s_videoTexture = NULL;
+    s_videoWidth = s_videoHeight = 0;
     SDL_DestroyTexture(s_texture);
     SDL_DestroyRenderer(s_renderer);
     SDL_DestroyWindow(s_window);
@@ -287,4 +292,62 @@ bool SDL2_Present(const PlatformFrame *frame) {
         frame->overlay((uint32_t *)pixels, (uint32_t)pitch, frame->width, frame->height, frame->palette_rgb);
     SDL_UnlockTexture(s_texture);
     return converted && PresentTexture();
+}
+
+/* dst_* is in framebuffer pixels; map it into the same letterboxed viewport
+   the indexed frame is drawn to. fill_display covers the whole output
+   instead, cropping the frame to the output's aspect. */
+bool SDL2_PresentVideo(const PlatformVideoFrame *frame) {
+    if (!frame || !frame->y || !frame->u || !frame->v || !frame->width || !frame->height ||
+        !s_renderer || !s_width || !s_height) {
+        SDL_SetError("Invalid movie frame");
+        return Error("SDL2 present");
+    }
+    if (!s_videoTexture || s_videoWidth != frame->width || s_videoHeight != frame->height) {
+        SDL_DestroyTexture(s_videoTexture);
+        /* MPEG-1 decodes BT.601; SDL2 would pick BT.709 for a frame this tall. */
+        SDL_SetYUVConversionMode(SDL_YUV_CONVERSION_BT601);
+        s_videoTexture = SDL_CreateTexture(s_renderer, SDL_PIXELFORMAT_IYUV,
+                                           SDL_TEXTUREACCESS_STREAMING, (int)frame->width,
+                                           (int)frame->height);
+        if (!s_videoTexture) {
+            s_videoWidth = s_videoHeight = 0;
+            return Error("Unable to create SDL2 movie texture");
+        }
+        SDL_SetTextureScaleMode(s_videoTexture, SDL_ScaleModeLinear);
+        s_videoWidth = frame->width;
+        s_videoHeight = frame->height;
+    }
+    if (SDL_UpdateYUVTexture(s_videoTexture, NULL, frame->y, (int)frame->y_pitch, frame->u,
+                             (int)frame->uv_pitch, frame->v, (int)frame->uv_pitch) != 0)
+        return Error("Unable to upload SDL2 movie frame");
+    SDL_SetTextureColorMod(s_videoTexture, frame->brightness, frame->brightness, frame->brightness);
+    int width, height;
+    if (SDL_GetRendererOutputSize(s_renderer, &width, &height) != 0)
+        return Error("Unable to query SDL2 render dimensions");
+    SDL_Rect src = {0, 0, (int)frame->width, (int)frame->height};
+    SDL_Rect dst;
+    if (frame->fill_display) {
+        dst.x = dst.y = 0;
+        dst.w = width;
+        dst.h = height;
+        if ((double)frame->width * height > (double)frame->height * width) {
+            src.w = (int)((double)frame->height * width / height);
+            src.x = ((int)frame->width - src.w) / 2;
+        } else {
+            src.h = (int)((double)frame->width * height / width);
+            src.y = ((int)frame->height - src.h) / 2;
+        }
+    } else {
+        const SDL_Rect area = Viewport(width, height);
+        dst.x = area.x + (int)((double)frame->dst_x * area.w / s_width);
+        dst.y = area.y + (int)((double)frame->dst_y * area.h / s_height);
+        dst.w = (int)((double)frame->dst_w * area.w / s_width);
+        dst.h = (int)((double)frame->dst_h * area.h / s_height);
+    }
+    if (SDL_SetRenderDrawColor(s_renderer, 0, 0, 0, 255) != 0 || SDL_RenderClear(s_renderer) != 0 ||
+        SDL_RenderCopy(s_renderer, s_videoTexture, &src, &dst) != 0)
+        return Error("Unable to present SDL2 movie frame");
+    SDL_RenderPresent(s_renderer);
+    return true;
 }

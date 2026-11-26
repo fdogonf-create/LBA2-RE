@@ -11,6 +11,9 @@ const char *s_title = NULL;
 SDL_Window *s_window = NULL;
 SDL_Renderer *s_renderer = NULL;
 SDL_Texture *s_texture = NULL;
+SDL_Texture *s_videoTexture = NULL; /* movie frames (IYUV), sized to the source */
+uint32_t s_videoWidth = 0;
+uint32_t s_videoHeight = 0;
 uint32_t s_width = 0;
 uint32_t s_height = 0;
 bool s_fullscreen = false;
@@ -281,6 +284,11 @@ void SDL3_DestroyWindow(void) {
         SDL_DestroyTexture(s_texture);
         s_texture = NULL;
     }
+    if (s_videoTexture) {
+        SDL_DestroyTexture(s_videoTexture);
+        s_videoTexture = NULL;
+        s_videoWidth = s_videoHeight = 0;
+    }
     if (s_renderer) {
         SDL_DestroyRenderer(s_renderer);
         s_renderer = NULL;
@@ -433,4 +441,81 @@ bool SDL3_Present(const PlatformFrame *frame) {
 #endif
     return converted && PresentTexture();
 }
+}
+
+/* The source rectangle that covers a dst_w x dst_h area with the frame's
+   aspect kept, cropping whichever axis overflows. */
+static SDL_FRect CoverSource(uint32_t width, uint32_t height, float dstW, float dstH) {
+    SDL_FRect src = {0.0f, 0.0f, (float)width, (float)height};
+    if (dstW <= 0.0f || dstH <= 0.0f)
+        return src;
+    if ((float)width * dstH > (float)height * dstW) {
+        src.w = (float)height * dstW / dstH;
+        src.x = ((float)width - src.w) / 2.0f;
+    } else {
+        src.h = (float)width * dstH / dstW;
+        src.y = ((float)height - src.h) / 2.0f;
+    }
+    return src;
+}
+
+/* dst_* is in framebuffer pixels, which are the renderer's logical
+   coordinates (SetLogicalPresentation), so SDL letterboxes it with the rest.
+   fill_display draws past that letterbox, so it turns logical presentation
+   off for the draw and puts it back after. */
+bool SDL3_PresentVideo(const PlatformVideoFrame *frame) {
+    if (frame == NULL || frame->y == NULL || frame->u == NULL || frame->v == NULL ||
+        frame->width == 0 || frame->height == 0 || s_renderer == NULL) {
+        SDL_SetError("Invalid movie frame");
+        Platform_Log(PLATFORM_LOG_ERROR, "%s", SDL_GetError());
+        return false;
+    }
+    if (s_videoTexture == NULL || s_videoWidth != frame->width || s_videoHeight != frame->height) {
+        if (s_videoTexture)
+            SDL_DestroyTexture(s_videoTexture);
+        /* MPEG-1 decodes BT.601 limited range; SDL's YUV default is full range. */
+        SDL_PropertiesID props = SDL_CreateProperties();
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER, SDL_PIXELFORMAT_IYUV);
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_ACCESS_NUMBER, SDL_TEXTUREACCESS_STREAMING);
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, frame->width);
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, frame->height);
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_COLORSPACE_NUMBER,
+                              SDL_COLORSPACE_BT601_LIMITED);
+        s_videoTexture = SDL_CreateTextureWithProperties(s_renderer, props);
+        SDL_DestroyProperties(props);
+        if (s_videoTexture == NULL) {
+            s_videoWidth = s_videoHeight = 0;
+            Platform_Log(PLATFORM_LOG_ERROR, "Unable to create movie texture: %s", SDL_GetError());
+            return false;
+        }
+        SDL_SetTextureScaleMode(s_videoTexture, SDL_SCALEMODE_LINEAR);
+        s_videoWidth = frame->width;
+        s_videoHeight = frame->height;
+    }
+    if (!SDL_UpdateYUVTexture(s_videoTexture, NULL, frame->y, (int)frame->y_pitch, frame->u,
+                              (int)frame->uv_pitch, frame->v, (int)frame->uv_pitch)) {
+        Platform_Log(PLATFORM_LOG_ERROR, "Unable to upload movie frame: %s", SDL_GetError());
+        return false;
+    }
+    SDL_SetTextureColorMod(s_videoTexture, frame->brightness, frame->brightness, frame->brightness);
+    bool ok = SDL_SetRenderDrawColor(s_renderer, 0, 0, 0, 255);
+    if (frame->fill_display) {
+        int outW = 0, outH = 0;
+        SDL_SetRenderLogicalPresentation(s_renderer, 0, 0, SDL_LOGICAL_PRESENTATION_DISABLED);
+        SDL_GetCurrentRenderOutputSize(s_renderer, &outW, &outH);
+        const SDL_FRect src = CoverSource(frame->width, frame->height, (float)outW, (float)outH);
+        ok = ok && SDL_RenderClear(s_renderer) &&
+             SDL_RenderTexture(s_renderer, s_videoTexture, &src, NULL);
+        SetLogicalPresentation(s_width, s_height);
+    } else {
+        const SDL_FRect dst = {(float)frame->dst_x, (float)frame->dst_y, (float)frame->dst_w,
+                               (float)frame->dst_h};
+        ok = ok && SDL_RenderClear(s_renderer) &&
+             SDL_RenderTexture(s_renderer, s_videoTexture, NULL, &dst);
+    }
+    if (!ok || !SDL_RenderPresent(s_renderer)) {
+        Platform_Log(PLATFORM_LOG_ERROR, "Unable to present movie frame: %s", SDL_GetError());
+        return false;
+    }
+    return true;
 }

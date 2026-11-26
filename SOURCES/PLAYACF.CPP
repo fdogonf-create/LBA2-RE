@@ -40,9 +40,12 @@ int VideoLogIsEnabled(void) {
 #include <SYSTEM/LOGPRINT.H>
 #include <SYSTEM/TIMER.H>
 #include <PLATFORM/PLATFORM.H>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "CONSOLE/CONSOLE.H"
+#include <pl_mpeg.h>
 #endif
 
 char PathAcf[ADELINE_MAX_PATH];
@@ -371,6 +374,262 @@ static void PushCurrentFrameVideoAudio(smk smkObject, const int *tracksToPlay, i
     }
     PushVideoAudio(mixBuf, (U32)maxSize);
 }
+
+/* ── Full-colour replacement cinematics ─────────────────────────────────────
+   A movie may be replaced by an MPEG-1 program stream (mpeg1video + mp2) at
+   video/hd/<name>.mpg, or video/hd/<name>_<voice>.mpg to follow the voice
+   language (en, fr, de, sp, it, po), tried first; <name>_en.mpg is the last
+   resort. The file carries its own mixed audio.
+   Without such a file, or on a backend that cannot show full-colour frames,
+   the original Smacker movie plays. */
+
+static bool FindHdMovie(const char *name, char *outPath, U16 outSize) {
+    static const char *const kVoiceSuffix[] = {"en", "fr", "de", "sp", "it", "po"};
+    char base[32];
+    size_t len = 0;
+    while (name[len] && name[len] != '.' && len < sizeof(base) - 1) {
+        char c = name[len];
+        base[len] = (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
+        len++;
+    }
+    base[len] = '\0';
+    char file[64];
+    if (LanguageCD >= 0 && LanguageCD < (S32)(sizeof(kVoiceSuffix) / sizeof(kVoiceSuffix[0]))) {
+        snprintf(file, sizeof(file), "hd" ADELINE_PATH_SEP "%s_%s.mpg", base, kVoiceSuffix[LanguageCD]);
+        GetMoviePath(outPath, outSize, file);
+        if (ExistsFileOrDir(outPath))
+            return true;
+    }
+    snprintf(file, sizeof(file), "hd" ADELINE_PATH_SEP "%s.mpg", base);
+    GetMoviePath(outPath, outSize, file);
+    if (ExistsFileOrDir(outPath))
+        return true;
+    /* A voice language with no movie of its own (no release has Spanish
+       voices, for one) takes the English one, as the Smacker path does. */
+    snprintf(file, sizeof(file), "hd" ADELINE_PATH_SEP "%s_en.mpg", base);
+    GetMoviePath(outPath, outSize, file);
+    return ExistsFileOrDir(outPath);
+}
+
+/* Decode audio until it runs `lead` seconds past `until`. Returns false once
+   the stream has no more audio. */
+static bool PushHdAudio(plm_t *plm, double until, double lead, double *audioTime) {
+    static S16 pcm[PLM_AUDIO_SAMPLES_PER_FRAME * 2];
+    while (*audioTime < until + lead) {
+        plm_samples_t *samples = plm_decode_audio(plm);
+        if (!samples)
+            return false;
+        for (unsigned int i = 0; i < samples->count * 2; i++) {
+            float v = samples->interleaved[i] * 32767.0f;
+            if (v > 32767.0f)
+                v = 32767.0f;
+            if (v < -32768.0f)
+                v = -32768.0f;
+            pcm[i] = (S16)v;
+        }
+        PushVideoAudio(pcm, (U32)(samples->count * 2 * sizeof(S16)));
+        *audioTime = samples->time + (double)samples->count / (double)plm_get_samplerate(plm);
+    }
+    return true;
+}
+
+/* Where and how a movie frame is drawn: the original movie's rectangle with
+   the replacement's own aspect kept inside it, or, at VideoFullScreen 2, the
+   whole display with the frame cropped to fill it. */
+struct HdLayout {
+    S32 x, y, w, h;
+    bool fill;
+};
+
+static bool PresentHd(const plm_frame_t *frame, const HdLayout &layout, U8 brightness) {
+    PlatformVideoFrame out;
+    out.y = frame->y.data;
+    out.u = frame->cb.data;
+    out.v = frame->cr.data;
+    out.y_pitch = frame->y.width;
+    out.uv_pitch = frame->cb.width;
+    out.width = frame->width;
+    out.height = frame->height;
+    out.dst_x = layout.x;
+    out.dst_y = layout.y;
+    out.dst_w = layout.w;
+    out.dst_h = layout.h;
+    out.fill_display = layout.fill;
+    out.brightness = brightness;
+    return g_platform.window.present_video(&out);
+}
+
+/* A backend without movie presentation refuses this black frame; the
+   original movie plays instead. */
+static bool HdPresentationAvailable(void) {
+    static const uint8_t luma[4] = {16, 16, 16, 16};
+    static const uint8_t chroma[1] = {128};
+    PlatformVideoFrame probe;
+    probe.y = luma;
+    probe.u = chroma;
+    probe.v = chroma;
+    probe.y_pitch = 2;
+    probe.uv_pitch = 1;
+    probe.width = probe.height = 2;
+    probe.dst_x = probe.dst_y = 0;
+    probe.dst_w = (int32_t)ModeDesiredX;
+    probe.dst_h = (int32_t)ModeDesiredY;
+    probe.fill_display = false;
+    probe.brightness = 255;
+    return g_platform.window.present_video(&probe);
+}
+
+/* Play the replacement for `name` if there is one. Returns false, having
+   touched nothing, when the original should play instead. */
+static bool PlayHdMovie(const char *name, S32 *outKey) {
+    char path[ADELINE_MAX_PATH];
+    if (!FindHdMovie(name, path, ADELINE_MAX_PATH) || !HdPresentationAvailable())
+        return false;
+
+    plm_t *plm = plm_create_with_filename(path);
+    if (!plm)
+        return false;
+    if (!plm_has_headers(plm) || plm_get_num_video_streams(plm) < 1) {
+        Log_Warn("Video '%s': %s is not an MPEG-1 movie, playing the original", name, path);
+        plm_destroy(plm);
+        return false;
+    }
+    const int w = plm_get_width(plm);
+    const int h = plm_get_height(plm);
+    double fps = plm_get_framerate(plm);
+    if (fps <= 0.0)
+        fps = 30.0;
+    if (w <= 0 || h <= 0) {
+        plm_destroy(plm);
+        return false;
+    }
+
+    const bool audio = plm_get_num_audio_streams(plm) > 0 &&
+                       StartVideoAudio((S32)plm_get_samplerate(plm), 2, 1);
+    plm_set_audio_enabled(plm, audio ? 1 : 0);
+    plm_set_loop(plm, 0);
+
+    if (VideoLogIsEnabled())
+        Log_Info("[VIDEO] PlayAcf: playing '%s' from %s (%dx%d, %.2f fps, audio %s)", name, path, w,
+                 h, fps, audio ? "on" : "off");
+
+    SetBlackPal();
+    BoxReset();
+    Cls();
+    BoxUpdate();
+    InitWaitNoKey();
+    InitWaitNoInput(I_JOY | I_FIRE | I_MENUS);
+
+    HdLayout layout;
+    S32 cineW, cineH, cineX, cineY;
+    Video_ComputeCineRect((S32)ModeDesiredX, (S32)ModeDesiredY, VideoFullScreen, &cineW, &cineH,
+                          &cineX, &cineY);
+    layout.w = cineW;
+    layout.h = (S32)((double)cineW * h / w);
+    if (layout.h > cineH) {
+        layout.h = cineH;
+        layout.w = (S32)((double)cineH * w / h);
+    }
+    layout.x = cineX + (cineW - layout.w) / 2;
+    layout.y = cineY + (cineH - layout.h) / 2;
+    layout.fill = VideoFullScreen == 2;
+
+    /* Audio is kept a fixed lead ahead of the later of the frame's time and
+       the wall clock: if decoding falls behind real time on a slow device,
+       the device still has sound queued instead of running dry between
+       frames. */
+    const double kAudioLead = 0.75;
+    double audioTime = 0.0;
+    bool audioLeft = audio;
+    if (audio) {
+        audioLeft = PushHdAudio(plm, 0.0, kAudioLead, &audioTime);
+        ResumeVideoAudio();
+    }
+
+    bool skipped = false;
+    plm_frame_t *last = NULL;
+    U32 startTicks = Timer_ClockSource();
+    int frozen = 0;
+    int everFocused = 0;
+    U32 freezeStart = 0;
+    const double frameMs = 1000.0 / fps;
+    for (unsigned long c = 0; !skipped; c++) {
+        plm_frame_t *frame = plm_decode_video(plm);
+        if (!frame)
+            break;
+        last = frame;
+        const U32 nextAt0 = startTicks + (U32)((double)(c + 1) * frameMs);
+        if (audioLeft) {
+            const double wall = (double)(Timer_ClockSource() - startTicks) / 1000.0;
+            audioLeft = PushHdAudio(plm, frame->time > wall ? frame->time : wall, kAudioLead,
+                                    &audioTime);
+        }
+        /* A frame already past its slot is decoded (later frames build on it)
+           but not shown, so a slow device drops frames rather than time. */
+        if (c == 0 || Timer_ClockSource() < nextAt0)
+            PresentHd(frame, layout, 255);
+
+        U32 nextAt = nextAt0;
+        for (;;) {
+            MyGetInput();
+            ManageTime();
+            if (MyKey == K_ESC || (Input & I_MENUS)) {
+                skipped = true;
+                break;
+            }
+            if (AppActive)
+                everFocused = 1;
+            /* Hold the frame while the console is open or the window has lost
+               focus, then shift the schedule by the time held, as the Smacker
+               loop does. */
+            if (Console_IsOpen() || (everFocused && !AppActive)) {
+                if (!frozen) {
+                    if (audio)
+                        PauseVideoAudio();
+                    freezeStart = Timer_ClockSource();
+                    frozen = 1;
+                }
+                BoxStaticAdd(0, 0, (S32)(ModeDesiredX - 1), (S32)(ModeDesiredY - 1));
+                BoxUpdate();
+                continue;
+            }
+            if (frozen) {
+                const U32 pausedMs = Timer_ClockSource() - freezeStart;
+                startTicks += pausedMs;
+                nextAt += pausedMs;
+                if (audio)
+                    ResumeVideoAudio();
+                PresentHd(frame, layout, 255);
+                frozen = 0;
+            }
+            if (Timer_ClockSource() >= nextAt)
+                break;
+            if (Timer_FixedDtActive())
+                Timer_FixedDtPumpPolled();
+            else
+                g_platform.system.delay_ms(1);
+        }
+    }
+    const S32 key = MyKey;
+
+    StopVideoAudio();
+
+    /* The original fades its last frame out; do the same here. The decoder
+       still owns the frame, so this runs before it is destroyed. */
+    if (last && !Timer_FixedDtActive()) {
+        for (int step = 7; step >= 0; step--) {
+            PresentHd(last, layout, (U8)(step * 255 / 8));
+            g_platform.system.delay_ms(30);
+        }
+    }
+    plm_destroy(plm);
+
+    Cls();
+    BoxStaticFullflip();
+    SetBlackPal();
+    *outKey = key;
+    return true;
+}
 #endif
 
 //---------------------------------------------------------------------------
@@ -409,6 +668,15 @@ S32 PlayAcf(const char *name) {
 
         StopMusic();
         HQ_PauseSamples();
+
+        S32 hdKey = 0;
+        if (PlayHdMovie(name, &hdKey)) {
+            HQ_ResumeSamples();
+            InitWaitNoKey();
+            InitWaitNoInput(I_MENUS);
+            s_playacf_playing = 0;
+            return hdKey;
+        }
 
         smk smkObject = Video_OpenSource(PathAcf, n);
         if (!smkObject) {
