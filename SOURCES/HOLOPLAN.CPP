@@ -413,7 +413,7 @@ void DrawListHoloPlan() {
 #define HOLO_ZOOM_RATE 2048 /* per second at full tilt: 1x to 3x in a second */
 
 static U8 s_mapClean[IMAGE_AUTHORED_WIDTH * IMAGE_AUTHORED_HEIGHT]; /* the map as loaded */
-static S32 s_mapX0 = 0, s_mapY0 = 0; /* where it sits in Log */
+static S32 s_mapX0 = 0, s_mapY0 = 0;                                /* where it sits in Log */
 static S32 s_zoom = HOLO_ZOOM_ONE;
 static S32 s_viewX = 0, s_viewY = 0, s_viewW = IMAGE_AUTHORED_WIDTH, s_viewH = IMAGE_AUTHORED_HEIGHT;
 
@@ -940,7 +940,7 @@ static void HoloPlanExtraInput(void) {
     if (JoystickIsPresent()) {
         S16 rx = 0, ry = 0;
         JoystickGetRightStick(&rx, &ry);
-        if (ry < -JoystickDeadzone OR ry > JoystickDeadzone)
+        if (ry<-JoystickDeadzone OR ry> JoystickDeadzone)
             zoom -= (S32)((S64)ry * HOLO_ZOOM_RATE * (S32)dt / (32768 * 1000));
     }
     if (zoom < HOLO_ZOOM_ONE)

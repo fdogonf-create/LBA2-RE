@@ -1087,8 +1087,8 @@ void HoloGlobe(S32 planet) {
                         target = NumObjectif;
                     else if (NumObjectif >= MAX_OBJECTIF AND NumObjectif < MAX_OBJECTIF + MAX_CUBE)
                         target = TabArrow[NumObjectif].Island;
-                    if ((NumObjectif == 1000)  //	Twinsen
-                        OR(NumObjectif == -1)  //	Dans la Nature
+                    if ((NumObjectif == 1000) //	Twinsen
+                        OR(NumObjectif == -1) //	Dans la Nature
                         OR HoloPlan_IslandKnown(target)) {
                         FlagMap = 1;
                         ZoomedIsland = target;
