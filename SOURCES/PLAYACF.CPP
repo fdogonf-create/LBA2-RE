@@ -40,6 +40,7 @@ int VideoLogIsEnabled(void) {
 #include <SYSTEM/LOGPRINT.H>
 #include <SYSTEM/TIMER.H>
 #include <PLATFORM/PLATFORM.H>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
