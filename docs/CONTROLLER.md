@@ -30,7 +30,7 @@ ignores it, because a recording does not carry the stick's raw axes.
 | Key | Console | Default | Description |
 |-----|---------|---------|-------------|
 | `GamepadAnalogMove` | `pad_analog_move` | 0 (1 on Switch) | left stick walks Twinsen the way it points; 0 = original tank controls |
-| `GamepadDpadZoom` | `pad_dpad_zoom` | 0 (1 on Switch) | D-pad up / down zoom the Auto camera in / out; the distance holds until changed |
+| `GamepadDpadZoom` | `pad_dpad_zoom` | 0 (1 on Switch) | D-pad up / down zoom the Auto camera in / out; the distance holds until changed and is saved (`cam_distance`) |
 | `GamepadBehaviourCycle` | `pad_cycle_behaviour` | 0 (1 on Switch) | a tap of ZL steps normal, sporty, aggressive, discreet and round again |
 | `GamepadCameraCurve` | `cam_stick_curve` | 0 (1 on Switch) | right stick ramps squared, so a small tilt turns the camera gently |
 
