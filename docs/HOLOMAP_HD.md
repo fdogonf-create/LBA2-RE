@@ -16,7 +16,7 @@ The SDL2 backend ([WINDOW.CPP](../LIB386/PLATFORM/SDL2/WINDOW.CPP), `ApplyBackdr
 
 - From the globe, the map of any island Twinsen knows opens, not only his own (`HoloPlan_IslandKnown`: he is on it, or one of its cubes is marked).
 - On the map, L / R (Page Up / Page Down) step to the previous / next known island. It only changes what is shown; Twinsen stays where he is.
-- The right stick zooms in (up) and out (down), from 1x to 3x, centred on the chosen place; choosing another place with the D-pad while zoomed brings the view to it. The map is scaled from a clean copy (`HoloPlanDrawMap`) and the projection follows, so the models stay on their spots.
+- The map is drawn from a clean copy through a view (`HoloPlanDrawMap`) that can scale part of it, with the projection following; it always shows the whole map (a right-stick zoom was tried and removed).
 - The island's name is written at the top of the map (Spanish when the text language is Spanish, English otherwise).
 
 ## The globe's surface
