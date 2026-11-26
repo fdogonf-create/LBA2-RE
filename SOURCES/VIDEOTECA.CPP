@@ -1,4 +1,6 @@
-#include "C_EXTERN.H"
+#include <SYSTEM/ADELINE_TYPES.H>
+#include <SYSTEM/ADELINE.H>
+#include <SYSTEM/LIMITS.H>
 
 #include "DIRECTORIES.H"
 #include "MESSAGE.H"
@@ -51,8 +53,8 @@ static int IsKnown(const char *name) {
 
 void Videoteca_NoteSeenFromSave(void) {
     LoadNames();
-    for (int i = 0; i < s_total && i < 48; i++) {
-        if (ListVarGame[FLAG_ACF + i / 16] & (1 << (i & 15)))
+    for (int i = 0; i < s_total && i < ACF_FLAG_WORDS * 16; i++) {
+        if (AcfSeenInSave(i))
             Unlocks_Mark(UNLOCK_CATEGORY_VIDEO, s_names[i]);
     }
 }
@@ -195,10 +197,8 @@ int Videoteca_HasHd(const char *name) {
 }
 
 void Videoteca_Play(const char *name) {
-    S16 saved[3];
-    for (int i = 0; i < 3; i++)
-        saved[i] = ListVarGame[FLAG_ACF + i];
+    S16 saved[ACF_FLAG_WORDS];
+    AcfSaveFlags(saved);
     PlayAcf(name);
-    for (int i = 0; i < 3; i++)
-        ListVarGame[FLAG_ACF + i] = saved[i];
+    AcfRestoreFlags(saved);
 }

@@ -59,6 +59,13 @@ extern void Video_RequestCapture(const char *path);
    cinematic. Always false on a backend that cannot show one. */
 extern S32 Video_HasHdReplacement(const char *name);
 
+/* The save's record of which cinematics it has played: one bit per ListAcf
+   number, in ACF_FLAG_WORDS game variables from FLAG_ACF. */
+#define ACF_FLAG_WORDS 3
+extern S32 AcfSeenInSave(S32 n);
+extern void AcfSaveFlags(S16 *saved);
+extern void AcfRestoreFlags(const S16 *saved);
+
 #ifdef USE_MVIDEO_SMACKER
 void VideoLogEnable(int enable);
 int VideoLogIsEnabled(void);

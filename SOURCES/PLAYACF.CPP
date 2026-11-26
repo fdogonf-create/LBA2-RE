@@ -984,3 +984,19 @@ S32 Video_HasHdReplacement(const char *name) {
     return 0;
 }
 #endif
+
+S32 AcfSeenInSave(S32 n) {
+    if (n < 0 || n >= ACF_FLAG_WORDS * 16)
+        return FALSE;
+    return (ListVarGame[FLAG_ACF + n / 16] & (1 << (n & 15))) != 0;
+}
+
+void AcfSaveFlags(S16 *saved) {
+    for (int i = 0; i < ACF_FLAG_WORDS; i++)
+        saved[i] = ListVarGame[FLAG_ACF + i];
+}
+
+void AcfRestoreFlags(const S16 *saved) {
+    for (int i = 0; i < ACF_FLAG_WORDS; i++)
+        ListVarGame[FLAG_ACF + i] = saved[i];
+}
