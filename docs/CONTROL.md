@@ -561,6 +561,7 @@ widescreen, font, palette, or layout changes are most likely to disturb.
 | `ui menu-camera <path>` | The Camera page opened from Advanced options (Outdoors, Indoors) |
 | `ui menu-main <path>` | The boot-time main menu (Resume / New Game / Load / Options / Quit) |
 | `ui menu-main-options <path>` | Options entered from the boot main menu |
+| `ui videoteca <path> [page]` | The movie library over the boot menu's backdrop, at a page counted from 1 |
 | `ui found-object <numvar> <path>` | The found-object cinematic — 3D rotation of `TabInv[numvar]`'s item + dialogue |
 
 Each verb takes the destination path as its last argument. Compose with `--load` and
@@ -713,7 +714,7 @@ following:
   normal call site and replicate everything it does, gated on capture-armed so
   non-harness callers see no behaviour change.
 
-- **Distinguish the composed page from the visible frame.** `Log` is the render buffer, `Screen` is the clean backdrop, and `BoxUpdate` copies dirty rectangles to persistent `Phys` for presentation. Most modal captures read `Log`; inventory's render path leaves `Screen` valid. Menu captures read `Phys` so missing backdrop updates cannot hide behind a correct offscreen image. They hide the menu pointer and present once more first, so a host pointer crossing the window does not end up in the capture. Every menu verb (`menu-options`, `menu-advanced`, `menu-camera`, `menu-main`, `menu-main-options`, `display`, `resolution`) also compares the entire indexed `Phys` and `Log` buffers at capture time and reports `presented_matches_rendered=1` only if every visible pixel matches the composed page.
+- **Distinguish the composed page from the visible frame.** `Log` is the render buffer, `Screen` is the clean backdrop, and `BoxUpdate` copies dirty rectangles to persistent `Phys` for presentation. Most modal captures read `Log`; inventory's render path leaves `Screen` valid. Menu captures read `Phys` so missing backdrop updates cannot hide behind a correct offscreen image. They hide the menu pointer and present once more first, so a host pointer crossing the window does not end up in the capture. Every menu verb (`menu-options`, `menu-advanced`, `menu-camera`, `menu-main`, `menu-main-options`, `videoteca`, `display`, `resolution`) also compares the entire indexed `Phys` and `Log` buffers at capture time and reports `presented_matches_rendered=1` only if every visible pixel matches the composed page.
 
 - **Pre-arm `PtrMap`/`ObjPtrMap`** for any modal that renders 3D bodies via
   `BodyDisplay`. Without it the texture filler dereferences a null/stale pointer and

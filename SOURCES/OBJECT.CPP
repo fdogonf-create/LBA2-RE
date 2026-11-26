@@ -25,6 +25,7 @@
 #include "AMBIANCE.H"
 #include "ANALOGMOVE.H" /* the left stick walking Twinsen the way it points */
 #include "ACTIONHINT.H" /* the A button shown in a zone the action button works in */
+#include "VIDEOTECA.H"
 #include <PLATFORM/PLATFORM.H>
 
 extern S32 FlagAnimWhoSpeak; // MESSAGE.CPP
@@ -1427,6 +1428,7 @@ void ChangeCube() {
 
         if (flagload != LOADGAME_ERR_CONTEXT) {
             CheckProtoPack();
+            Videoteca_NoteSeenFromSave();
         }
 
         NewCube = -1;

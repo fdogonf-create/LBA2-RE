@@ -707,6 +707,15 @@ static void cmd_ui_dispatch(int argc, const char *argv[]) {
                       (int)Menu_CaptureMatchesPresented());
         return;
     }
+    if (argc >= 3 && !strcmp(argv[1], "videoteca")) {
+        /* The movie library over the boot menu's backdrop; an optional third
+           argument picks the page, from 1. */
+        const S32 page = (argc >= 4) ? (S32)strtol(argv[3], NULL, 10) - 1 : 0;
+        Videoteca_MainCapture(argv[2], page);
+        Console_Print("ui videoteca -> %s (presented_matches_rendered=%d)", argv[2],
+                      (int)Menu_CaptureMatchesPresented());
+        return;
+    }
     if (argc >= 3 && !strcmp(argv[1], "menu-main-options")) {
         S32 matches = Menu_MainOptionsCapture(argv[2]);
         Console_Print("ui menu-main-options -> %s (presented_matches_rendered=%d)",
@@ -866,6 +875,7 @@ static void cmd_ui_dispatch(int argc, const char *argv[]) {
     Console_Print("       ui [--black-bg] menu-advanced <path>");
     Console_Print("       ui menu-main <path>");
     Console_Print("       ui menu-main-options <path>");
+    Console_Print("       ui videoteca <path> [page]");
     Console_Print("       ui [--black-bg] display <path>");
     Console_Print("       ui [--black-bg] resolution <path>");
     Console_Print("       ui config <path>");
@@ -2577,7 +2587,7 @@ void Console_RegisterAll(void) {
                               "Without a path, writes state_<time>.json under shoot/. Diffing two "
                               "dumps from one session says what changed between two moments.");
     Console_RegisterCommandEx("ui", cmd_ui, "Open a UI modal and capture a screenshot",
-                              "ui {inventory|holomap|menu-options|menu-advanced|menu-camera|menu-main|menu-main-options|config|slideshow} <path> | ui config-pad | ui holoplan <island> <path> | ui video <name> <path> | ui {dialog|found-object} <id> <path> | ui pcx-message <pcx-idx> <text-id> [<path>] [big|full|normal] | ui askchoice [--press <key>] <question-id> <choice-id>...",
+                              "ui {inventory|holomap|menu-options|menu-advanced|menu-camera|menu-main|menu-main-options|config|slideshow} <path> | ui videoteca <path> [page] | ui config-pad | ui holoplan <island> <path> | ui video <name> <path> | ui {dialog|found-object} <id> <path> | ui pcx-message <pcx-idx> <text-id> [<path>] [big|full|normal] | ui askchoice [--press <key>] <question-id> <choice-id>...",
                               "Composite verb for UI regression fixtures: opens a UI modal "
                               "with a deterministic auto-exit, writes the settled frame to <path> "
                               "via SavePNG, then closes.  Compose with --load / --exec to drive "

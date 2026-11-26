@@ -252,3 +252,12 @@ For broader preservation (ASCII art, French comments, developer culture), see [F
 - [SAVEGAME.md](SAVEGAME.md) for save/load format and lifecycle
 - [DEBUG.md](DEBUG.md) for bug save/load menu integration
 - [CONSOLE.md](CONSOLE.md) for console availability in menu
+
+## Movie library (Videoteca)
+
+The main menu offers a movie library while its list has room for a seventh row, which is before a game is under way; once there is a game to save it moves under Options, and only Options reached from the main menu shows it, since a cinematic cannot play over a running scene. The page lists every cinematic RESS.HQR names, six to a page: the ones the player has seen, numbered in the order they were first seen and played with A, and the rest greyed out as `? ? ?`. Left and right, or A on the last row, turn the page.
+
+A cinematic counts as seen the moment `PlayAcf` starts it, skipped or not, and loading a save records every cinematic that save's `FLAG_ACF` words say it has played. Both go to `unlocks.txt` beside the saves (`UNLOCKS.H`), one `<category> <name>` per line, so what has been seen is the profile's, not one save's. Playing from the library puts the save's `FLAG_ACF` words back afterwards, so the game in progress does not learn of a cinematic it has not reached.
+
+Titles are the cinematic's name, a Spanish title on a Spanish menu, or a `NAME = Title` line in `video/hd/videoteca.txt`, which wins over both. A row reads `(HD)` when a replacement movie in `video/hd/` would play.
+

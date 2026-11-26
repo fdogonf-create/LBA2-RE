@@ -6,6 +6,7 @@
 
 #include "IMAGE_LOAD.H"
 #include "VIDEO_FIT.H"
+#include "UNLOCKS.H"
 
 #include <string.h>
 #include <SYSTEM/LOG.H>
@@ -479,6 +480,11 @@ static bool HdPresentationAvailable(void) {
     return g_platform.window.present_video(&probe);
 }
 
+S32 Video_HasHdReplacement(const char *name) {
+    char path[ADELINE_MAX_PATH];
+    return FindHdMovie(name, path, ADELINE_MAX_PATH) && HdPresentationAvailable();
+}
+
 /* Play the replacement for `name` if there is one. Returns false, having
    touched nothing, when the original should play instead. */
 static bool PlayHdMovie(const char *name, S32 *outKey) {
@@ -665,6 +671,10 @@ S32 PlayAcf(const char *name) {
             s_playacf_playing = 0;
             return 0;
         }
+
+        /* Seen once, whether watched to the end or skipped: the movie library
+           offers it from now on, in every save. */
+        Unlocks_Mark(UNLOCK_CATEGORY_VIDEO, name);
 
         StopMusic();
         HQ_PauseSamples();
@@ -967,3 +977,10 @@ S32 PlayAcf(const char *name) {
 }
 
 //---------------------------------------------------------------------------
+
+#ifndef USE_MVIDEO_SMACKER
+S32 Video_HasHdReplacement(const char *name) {
+    (void)name;
+    return 0;
+}
+#endif
