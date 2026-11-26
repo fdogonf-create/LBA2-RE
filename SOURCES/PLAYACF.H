@@ -55,8 +55,8 @@ extern S32 PlayAcf(const char *name);
    `ui video <name> <path>` verb. */
 extern void Video_RequestCapture(const char *path);
 
-/* Whether a high-definition replacement (video/hd/) would play for this
-   cinematic. Always false on a backend that cannot show one. */
+/* Whether video/hd/ holds a high-definition replacement for this cinematic.
+   Always false in a build without movie playback. */
 extern S32 Video_HasHdReplacement(const char *name);
 
 /* The save's record of which cinematics it has played: one bit per ListAcf
