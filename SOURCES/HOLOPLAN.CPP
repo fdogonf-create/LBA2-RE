@@ -906,6 +906,26 @@ int HoloPlan_IsCaptureArmed(void) {
     return s_holoplan_capture_path[0] != '\0';
 }
 
+/* The reticule sits where the chosen place was projected; after the view
+   moves or zooms, project it again so the cursor stays on its arrow. */
+static void HoloPlanReprojectObjectif(void) {
+    S32 xt = 0, yt = 0, zt = 0;
+    if (NumObjectif == -1)
+        return;
+    if (NumObjectif == 1000) {
+        RecupCoorTwinsen(&xt, &yt, &zt);
+    } else {
+        xt = TabArrow[NumObjectif].X;
+        yt = TabArrow[NumObjectif].Y;
+        zt = TabArrow[NumObjectif].Z;
+    }
+    LongWorldRotatePoint(xt, yt, zt);
+    LongProjectPoint(X0, Y0, Z0);
+    XpObjectif = Xp;
+    YpObjectif = Yp;
+    OldObjectif = -2; /* redraw the reticule there */
+}
+
 /* L / R (Page Up / Page Down) step to the previous / next island Twinsen
    knows; the right stick zooms in and out on the chosen place. */
 static void HoloPlanExtraInput(void) {
@@ -967,6 +987,7 @@ static void HoloPlanExtraInput(void) {
         HoloPlanFocus(&fx, &fy);
         s_zoom = zoom;
         HoloPlanDrawMap(fx, fy);
+        HoloPlanReprojectObjectif();
         BoxStaticAdd(0, 0, (S32)ModeDesiredX - 1, (S32)ModeDesiredY - 1);
     }
     s_lastObjectif = NumObjectif;
