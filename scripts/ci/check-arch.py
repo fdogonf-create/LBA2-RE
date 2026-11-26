@@ -44,6 +44,7 @@ SOURCE_SUFFIXES = (".CPP", ".cpp", ".H", ".h", ".c", ".C", ".hpp", ".HPP")
 # users want the same thing.
 VENDORED = (
     "LIB386/libsmacker/",
+    "LIB386/pl_mpeg/",
     "LIB386/AIL/SDL/stb_vorbis.",
     "LIB386/FILEIO/stb_image_write.h",
 )
