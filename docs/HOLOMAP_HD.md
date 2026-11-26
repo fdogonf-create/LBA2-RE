@@ -6,6 +6,15 @@ A redrawn picture can stand in for one. [scripts/holomap_export.py](../scripts/h
 
 ## How it is shown
 
-`HoloHD_Begin` in [HOLOHD.CPP](../SOURCES/HOLOHD.CPP), called by `InitHoloPlan` once the indexed map is in `Log`, loads the PNG (`LoadPNG_ARGB`, stb_image) and keeps a copy of the indexed map as it was drawn. It hands both to the present as a `PlatformBackdrop` (`SetPresentBackdrop` in [SDL.CPP](../LIB386/SVGA/SDL.CPP)); `ClearHoloPlan` takes it away (`HoloHD_End`).
+`HoloHD_Begin` in [HOLOHD.CPP](../SOURCES/HOLOHD.CPP), called by `InitHoloPlan` once the indexed map is in `Log`, loads the PNG (`LoadPNG_ARGB`, stb_image). Each time the map is drawn at a zoom, `HoloHD_SetView` keeps a copy of the indexed map as it now stands and the part of the picture it shows (the backdrop's `src_*` rectangle), and hands both to the present as a `PlatformBackdrop` (`SetPresentBackdrop` in [SDL.CPP](../LIB386/SVGA/SDL.CPP)); `ClearHoloPlan` takes it away (`HoloHD_End`).
 
 The SDL2 backend ([WINDOW.CPP](../LIB386/PLATFORM/SDL2/WINDOW.CPP), `ApplyBackdrop`) clears the alpha of every converted frame pixel inside the map's rectangle whose index still equals the copy, draws the picture into that rectangle, and the frame over it with blending. Anything drawn over the map (the models, the corner brackets, the text and its window, the zoom-in animation) differs from the copy and stays the frame's. The picture is dimmed by the ratio of the frame palette to the palette the map fades in to, so fades take it with them. Other backends ignore the backdrop and show the original map.
+
+## Looking at other islands
+
+[HOLOPLAN.CPP](../SOURCES/HOLOPLAN.CPP) and [HOLOGLOB.CPP](../SOURCES/HOLOGLOB.CPP) add, to the original holomap:
+
+- From the globe, the map of any island Twinsen knows opens, not only his own (`HoloPlan_IslandKnown`: he is on it, or one of its cubes is marked).
+- On the map, L / R (Page Up / Page Down) step to the previous / next known island. It only changes what is shown; Twinsen stays where he is.
+- The right stick zooms in (up) and out (down), from 1x to 3x, centred on the chosen place; choosing another place with the D-pad while zoomed brings the view to it. The map is scaled from a clean copy (`HoloPlanDrawMap`) and the projection follows, so the models stay on their spots.
+- The island's name is written at the top of the map (Spanish when the text language is Spanish, English otherwise).

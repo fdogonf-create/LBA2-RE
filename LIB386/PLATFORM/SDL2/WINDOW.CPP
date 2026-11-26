@@ -22,6 +22,7 @@ const uint32_t *s_backdropPixels = NULL;
 uint32_t s_backdropSerial = 0;
 bool s_backdropOn = false;
 SDL_Rect s_backdropRect = {0, 0, 0, 0}; /* in frame pixels */
+SDL_Rect s_backdropSrc = {0, 0, 0, 0};  /* in picture pixels; w 0 for all of it */
 Uint8 s_backdropBright = 255;
 #ifdef LBA2_SDL2_TESTS
 void (*s_presentProbe)(SDL_Renderer *) = NULL;
@@ -127,6 +128,10 @@ void ApplyBackdrop(const PlatformFrame *frame, uint32_t *pixels, uint32_t pitch)
     s_backdropRect.y = b->y;
     s_backdropRect.w = b->w;
     s_backdropRect.h = b->h;
+    s_backdropSrc.x = b->src_x;
+    s_backdropSrc.y = b->src_y;
+    s_backdropSrc.w = b->src_w > 0 && b->src_h > 0 ? b->src_w : 0;
+    s_backdropSrc.h = b->src_h;
     s_backdropOn = true;
 }
 
@@ -144,7 +149,7 @@ bool PresentTexture() {
         const SDL_Rect dst = MapRect(area, s_backdropRect);
         SDL_SetTextureColorMod(s_backdropTexture, s_backdropBright, s_backdropBright, s_backdropBright);
         SDL_SetTextureBlendMode(s_texture, SDL_BLENDMODE_BLEND);
-        if (SDL_RenderCopy(s_renderer, s_backdropTexture, NULL, &dst) != 0 ||
+        if (SDL_RenderCopy(s_renderer, s_backdropTexture, s_backdropSrc.w ? &s_backdropSrc : NULL, &dst) != 0 ||
             SDL_RenderCopy(s_renderer, s_texture, NULL, &area) != 0)
             return Error("Unable to present SDL2 frame");
         drawn = true;

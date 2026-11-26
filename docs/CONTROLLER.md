@@ -52,7 +52,7 @@ A build with `LBA2_MODERN_PAD_DEFAULT` (the Switch preset) binds the pad by the 
 | A | Talk, search, open (`I_ACTION_ALWAYS`) | Confirm (`I_RETURN`) |
 | B | Throw the weapon (`I_THROW`) | Back (`I_MENUS`) |
 | X | The behaviour's action (`I_ACTION_M`) | |
-| Y | Holomap | |
+| Y | Holomap | On an island map: L / R show the previous / next known island (only to look), right stick zooms |
 | L / ZL | Behaviour menu / next behaviour | |
 | R | Quick item menu (`MenuQuickInventory`, `pad_quick_menu`) | Closes it |
 | ZR | Protection spell | |
