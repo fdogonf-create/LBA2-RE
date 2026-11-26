@@ -180,7 +180,8 @@ S32 Settings_MoveDefaults(const T_SETTING *table, S32 count, const char *marker,
 
             if (s->key == NULL OR strcmp(s->key, mv->key) != 0)
                 continue;
-            if (DefFileBufferKeyOrigin(s->key) != DEFFILE_ORIGIN_OWNED OR * s->value != mv->was)
+            /* Nor where this build's default is still the old one: nothing to move. */
+            if (DefFileBufferKeyOrigin(s->key) != DEFFILE_ORIGIN_OWNED OR * s->value != mv->was OR s->def == mv->was)
                 break;
             *s->value = s->def;
             if (s->stored != NULL)

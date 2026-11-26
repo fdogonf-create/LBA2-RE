@@ -463,6 +463,11 @@ static void WriteOwnedConfig(void) {
 
     DefFileBufferWriteString(
         "Language", GetLanguageName(Settings_ValueToPersist(Language, StoredLanguage, ForcedLanguage())));
+#ifdef LBA2_DEFAULT_LANGUAGE
+    /* Marks the Language above as written by a build that starts in another
+       language, so InitLanguage trusts it (see there). */
+    DefFileBufferWriteValue("LanguagePicked", 1);
+#endif
 #ifdef CDROM
     DefFileBufferWriteString("LanguageCD", GetLanguageName(LanguageCD));
 #endif

@@ -777,7 +777,7 @@ void UpdateFollowCameraExt(void) {
     /* First-frame init: sync to current camera state.
                      * FollowCamTargetBeta defaults to 0 but BetaCam starts ~2048
                      * after CameraCenter(1), causing a bogus initial spin. */
-    if (FollowCamBaseDist == 0)
+    if (FollowCamBaseDist < FOLLOW_CAM_DIST_MIN) /* 0: none chosen, here or in cam_distance */
         FollowCamBaseDist = FOLLOW_CAM_INITIAL_DIST;
     if (FollowCamEffectiveDist == 0) {
         FollowCamEffectiveDist = FollowCamBaseDist;
@@ -1320,7 +1320,8 @@ S32 FollowCamCarryIntoScene(void) {
  * into this file's statics, named for the moments that need them. */
 
 void FollowCamResetToView(void) {
-    FollowCamBaseDist = FOLLOW_CAM_INITIAL_DIST;
+    if (!FOLLOW_CAM_CENTER_KEEPS_ZOOM OR FollowCamBaseDist < FOLLOW_CAM_DIST_MIN)
+        FollowCamBaseDist = FOLLOW_CAM_INITIAL_DIST;
     FollowCamEffectiveDist = FollowCamBaseDist;
     FollowCamSyncTarget();
     FollowCamReengageDelay = 0;
@@ -2085,6 +2086,13 @@ static const T_SETTING FollowCamSettings[] = {
     {"FollowCamHoldAngle", NULL, "cam_hold_angle", &FollowCamHoldAngle, SETTING_TRUTHY,
      FOLLOW_CAM_HOLD_ANGLE_DEFAULT, 0, 1, NULL, NULL, NULL, NULL,
      "Hold the manual camera rotation (free-camera); off = it comes back behind the hero as he walks", SETTING_RECORDED, SETTING_BEFORE_NONE},
+    /* The zoom the player chose, kept from one run to the next. 0 is none
+     * chosen: the first frame takes FOLLOW_CAM_INITIAL_DIST, and so does any
+     * value under FOLLOW_CAM_DIST_MIN. Only the picture's distance, so a replay
+     * neither carries nor compares it. */
+    {"FollowCamDistance", NULL, "cam_distance", &FollowCamBaseDist, SETTING_CLAMP,
+     0, 0, FOLLOW_CAM_DIST_MAX, NULL, NULL, NULL, NULL,
+     "Auto cam: the zoom the player chose (0 = the default distance)", SETTING_NOT_RECORDED, SETTING_BEFORE(0)},
     {"FollowCamZoneReturn", NULL, "cam_zone_return", &FollowCamZoneReturn, SETTING_TRUTHY,
      FOLLOW_CAM_ZONE_RETURN_DEFAULT, 0, 1, NULL, NULL, NULL, NULL,
      "Auto cam: give a scripted shot's yaw and pitch back when the hero leaves its box", SETTING_RECORDED, SETTING_BEFORE(0)},
@@ -2128,12 +2136,16 @@ static const T_SETTING FollowCamSettings[] = {
  * so its players' files hold its defaults as if chosen; marker 1 moves those
  * still at them to the defaults the Auto camera has had since. */
 #define FOLLOW_CAM_DEFAULTS_MARKER "FollowCamDefaults"
-#define FOLLOW_CAM_DEFAULTS_VERSION 1
+#define FOLLOW_CAM_DEFAULTS_VERSION 2
 
 static const T_SETTING_DEFAULT_MOVE FollowCamDefaultMoves[] = {
     {"FollowCamWorldAnchor", 0, 1},
     {"FollowCamHoldAngle", 1, 1},
     {"FollowCamShotBlendMs", 600, 1},
+    /* A build whose default is on (LBA2_MODERN_GAMEPAD) takes it over the off
+     * every earlier build wrote; elsewhere the default is still off and this
+     * moves nothing. */
+    {"FollowCamHoldAngle", 0, 2},
 };
 
 void FollowCam_ReadConfig(void) {

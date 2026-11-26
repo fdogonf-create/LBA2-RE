@@ -26,12 +26,12 @@ These work outdoors with the Auto camera on.
 
 Tilt and the quarter turn can be rebound in Options → Keyboard; the orbit and zoom keys are fixed. Mouse and stick sensitivity, inversion and the dead zone are in [CONTROLLER.md](CONTROLLER.md).
 
-The zoom is not saved: it starts at the middle distance in every session, and Enter puts it back there.
+The zoom is saved in `lba2.cfg` as `FollowCamDistance` (`cam_distance`; 0, the default, is the middle distance), so it holds from one scene and one session to the next. Enter puts it back at the middle distance, except in a build with `LBA2_MODERN_GAMEPAD` (the Switch build), where Center camera keeps the zoom you chose.
 
 ## What the Auto camera does
 
 - **It holds its direction when Twinsen turns.** Turning on the spot, or a boat turning under him, does not swing the camera round. As he walks it comes back behind him, sooner the faster he goes, and stops exactly behind him. With `cam_world_anchor 0` it comes round behind him as he turns instead, in about a second, the pace of the 2022 Classic release's auto camera.
-- **The angle you set.** Orbit the camera and it stays there for a moment, then comes back behind Twinsen as he walks. With `cam_hold_angle 1` it stays until you press Enter.
+- **The angle you set.** Orbit the camera and it stays there for a moment, then comes back behind Twinsen as he walks. With `cam_hold_angle 1` (the default in the Switch build, where the left stick moves Twinsen relative to the camera) it stays until you press Enter.
 - **The view trails Twinsen** a little while he runs and settles after he stops.
 - **Scripted camera shots.** Many outdoor places have a camera shot placed by the game's designers. A shot that holds the view takes it while Twinsen is inside its area, gliding in and out rather than cutting. When he leaves, the camera eases back to the angle and tilt you had before. Shots that only fire once do not take the view while you are steering.
 - **Signs.** A sign that shows a place shows that view as soon as its text opens. When you close it, the camera glides back to Twinsen.
@@ -49,7 +49,8 @@ When a default changes, an `lba2.cfg` written by an earlier version moves to it 
 | Console | `lba2.cfg` key | Default | What it does | Off gives |
 | --- | --- | --- | --- | --- |
 | `cam_follow` | `FollowCamera` | 0 | The Auto camera itself | the classic camera |
-| `cam_hold_angle` | `FollowCamHoldAngle` | 0 | 1: keeps the angle you orbit to until you press Enter | comes back behind Twinsen as he walks |
+| `cam_hold_angle` | `FollowCamHoldAngle` | 0 (1 with `LBA2_MODERN_GAMEPAD`, as on Switch) | 1: keeps the angle you orbit to until you press Enter | comes back behind Twinsen as he walks |
+| `cam_distance` | `FollowCamDistance` | 0 | The zoom you chose, kept between sessions; 0 is the middle distance | the zoom starts at the middle distance every session |
 | `cam_ease_ms` | `FollowCamEaseMs` | 300 | How quickly the camera comes round behind Twinsen, in milliseconds (600 is the earlier pace) | 0: the earlier per-frame follow, which can stop up to a degree short |
 | `cam_target_ms` | `FollowCamTargetMs` | 300 | How far the view trails Twinsen, in milliseconds | 0: the view pinned to him |
 | `cam_shot_blend_ms` | `FollowCamShotBlendMs` | 900 | Glide into and out of a scripted shot, in milliseconds (indoors too, with the interior follow) | 0: a cut |

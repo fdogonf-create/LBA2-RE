@@ -3308,6 +3308,10 @@ S32 GereLanguageMenu(void) {
         }
     }
 
+    /* Keep the choice now rather than at a clean exit, which a console's
+       system menu may never give the game; the resolution page does the same. */
+    WriteConfigFile();
+
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
 

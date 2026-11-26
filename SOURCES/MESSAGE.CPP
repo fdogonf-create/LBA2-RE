@@ -375,8 +375,11 @@ void InitLanguage() {
     /* A build for players of another language starts there. The config beside
        the game data was written by whatever installed it, not chosen by the
        player, so it does not hold this build to English either; a language
-       picked in the Options menu is in the player's own file and wins. */
-    if (DefFileBufferKeyOrigin("Language") == DEFFILE_ORIGIN_OWNED) {
+       picked in the Options menu is in the player's own file and wins. Only a
+       file that carries LanguagePicked was written by such a build: an older
+       one holds the English every build used to write without asking, and
+       would otherwise keep this build in English for good. */
+    if (DefFileBufferKeyOrigin("Language") == DEFFILE_ORIGIN_OWNED AND DefFileBufferKeyOrigin("LanguagePicked") == DEFFILE_ORIGIN_OWNED) {
         strcpy(string, DefFileBufferReadStringDefault("Language", TabLanguage[LBA2_DEFAULT_LANGUAGE]));
     } else {
         strcpy(string, TabLanguage[LBA2_DEFAULT_LANGUAGE]);

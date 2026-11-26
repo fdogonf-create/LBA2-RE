@@ -89,8 +89,12 @@
  * camera (Enter / gamepad B), like a free third-person camera. Off restores the
  * classic lazy drift-back, or with the world anchor the return paced by distance
  * walked. Off by default, so the anchored camera comes back behind the hero.
- * cvar cam_hold_angle. */
+ * A build with LBA2_MODERN_GAMEPAD turns it on: with the left stick moving the
+ * hero relative to the camera, a camera that swings round by itself as he walks
+ * fights the right stick. cvar cam_hold_angle. */
+#ifndef FOLLOW_CAM_HOLD_ANGLE_DEFAULT
 #define FOLLOW_CAM_HOLD_ANGLE_DEFAULT 0
+#endif
 
 /* World anchor -----------------------------------------------------------------*/
 /* What the camera's horizontal angle is held against. Off, it is an offset from
@@ -183,6 +187,14 @@
  * rest of this header it expands to engine state, so it is usable only where
  * DefVueDistance is declared. */
 #define FOLLOW_CAM_INITIAL_DIST ((DefVueDistance[0] + DefVueDistance[1]) / 2)
+/* Whether Center camera keeps the zoom the player chose rather than putting the
+ * arm back to FOLLOW_CAM_INITIAL_DIST. Off as the camera has always been; a build
+ * with LBA2_MODERN_GAMEPAD turns it on, where Center camera sits on a face button
+ * a player presses often and the zoom is a choice made once (cam_distance keeps
+ * it from one run to the next). */
+#ifndef FOLLOW_CAM_CENTER_KEEPS_ZOOM
+#define FOLLOW_CAM_CENTER_KEEPS_ZOOM 0
+#endif
 
 /* Interior follow (FollowCamInterior) ---------------------------------------*/
 /* Community addition, off by default like the exterior Auto camera it is named beside. On, the
