@@ -173,6 +173,12 @@ static void ApplyOverlays(U32 *pixels, U32 pitch, U32, U32, const U8 *palette) {
         s_overlayPrePresent(pixels, pitch, ModeResX, ModeResY, palette);
 }
 
+static const PlatformBackdrop *s_backdrop = NULL;
+
+void SetPresentBackdrop(const PlatformBackdrop *backdrop) {
+    s_backdrop = backdrop;
+}
+
 static void PresentFrame() {
     assert(paletteInitialized);
     assert(Phys != NULL);
@@ -184,7 +190,7 @@ static void PresentFrame() {
        rectangle is copied to Phys. Pixels outside that rectangle stay visible. */
     PlatformFrame frame = {
         (const U8 *)Phys, ModeResX, ModeResY, VideoSurfacePitch(), framePalette,
-        (s_prePresent || s_overlayPrePresent) ? ApplyOverlays : NULL};
+        (s_prePresent || s_overlayPrePresent) ? ApplyOverlays : NULL, s_backdrop};
     g_platform.window.present(&frame);
 }
 

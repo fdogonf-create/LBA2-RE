@@ -85,11 +85,28 @@ typedef void (*PlatformOverlayFn)(uint32_t *pixels, uint32_t pitch,
 /* Indexed pixels and the 256 RGB triples are borrowed for this call only.
    The optional overlay operates on 0xAARRGGBB pixels, with a byte pitch.
    Backends without an overlay may present indexed/RGB565 pixels directly. */
+/* A full-colour picture shown in place of part of the indexed frame: inside
+   the rectangle (x, y, w, h, in frame pixels), every frame pixel whose index
+   still equals `key` there is the picture, scaled to the rectangle at the
+   output's own resolution; any other pixel (something drawn over it) stays
+   the frame's. The picture is dimmed by how far the frame's palette has faded
+   from `key_palette`. All of it is borrowed until it is changed or cleared. A
+   backend that cannot show it presents the frame alone. */
+typedef struct PlatformBackdrop {
+    const uint32_t *argb; /* 0xAARRGGBB, `width` x `height`, rows packed */
+    uint32_t width, height;
+    int32_t x, y, w, h;
+    const uint8_t *key; /* w x h indices, rows packed */
+    const uint8_t *key_palette;
+    uint32_t serial; /* changes whenever argb's contents do */
+} PlatformBackdrop;
+
 typedef struct PlatformFrame {
     const uint8_t *pixels;
     uint32_t width, height, pitch;
     const uint8_t *palette_rgb;
     PlatformOverlayFn overlay;
+    const PlatformBackdrop *backdrop; /* optional, NULL for none */
 } PlatformFrame;
 
 /* One frame of a full-colour movie: planar YUV 4:2:0 (I420, BT.601 limited

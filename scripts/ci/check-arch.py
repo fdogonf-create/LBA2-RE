@@ -47,6 +47,7 @@ VENDORED = (
     "LIB386/pl_mpeg/",
     "LIB386/AIL/SDL/stb_vorbis.",
     "LIB386/FILEIO/stb_image_write.h",
+    "LIB386/FILEIO/stb_image.h",
 )
 
 # --- rule 8: macro names the standard headers already own -------------------

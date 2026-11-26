@@ -1,5 +1,6 @@
 #include "C_EXTERN.H"
 #include "DIRECTORIES.H"
+#include "HOLOHD.H"
 #include "IMAGE_LOAD.H"
 #include "INPUT.H"
 #include "MENU_INPUT.H"
@@ -457,6 +458,9 @@ void InitHoloPlan() {
     const S32 imageX1 = imageX0 + IMAGE_AUTHORED_WIDTH - 1;
     const S32 imageY1 = imageY0 + IMAGE_AUTHORED_HEIGHT - 1;
 
+    /* A redrawn map in the hd folder, if there is one, before the brackets. */
+    HoloHD_Begin(id, imageX0, imageY0, PtrPal);
+
     AffUpperLeft(imageX0, imageY0, 0);
     AffLowerLeft(imageX0, imageY1, 0);
     AffUpperRight(imageX1, imageY0, 0);
@@ -518,6 +522,7 @@ void InitHoloPlan() {
 }
 //════════════════════════════════════════════════════════════════════════════
 void ClearHoloPlan() {
+    HoloHD_End();
     /*      Unused depuis HoloMalloc
 
 	if ( BufDyno )		Free(BufDyno)		;
