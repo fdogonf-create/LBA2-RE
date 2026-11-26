@@ -22,8 +22,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <dirent.h>
 #include <SYSTEM/LOADSAVE.H>
 #include <SYSTEM/LOG.H>
+#include <SYSTEM/STRING.H>
 #include <SYSTEM/LZ.H>
 #include "SAVEGAME_LOAD_BOUNDS.H"
 
@@ -625,6 +627,99 @@ return written;
 // Version 4 : LBA II only !! (LoadSize + read limit via SaveLoadFileToScreen)
 
 #ifndef EDITLBA2
+/*──────────────────────────────────────────────────────────────────────────*/
+/* One save's FLAG_ACF words, read into a buffer of its own so nothing of the
+   game in progress (Screen, PtrSave, ListVarGame, PlayerName) is touched. */
+static S32 ReadCinematicFlagsFromFile(const char *path, S16 *out, S32 words) {
+    FILE *f = fopen(path, "rb");
+    if (!f)
+        return FALSE;
+    fseek(f, 0, SEEK_END);
+    const long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    /* Generous for any save; anything larger is not one. */
+    if (size < 8 || size > 4L * 1024 * 1024) {
+        fclose(f);
+        return FALSE;
+    }
+    U8 *file = (U8 *)malloc((size_t)size + RECOVER_AREA);
+    if (!file) {
+        fclose(f);
+        return FALSE;
+    }
+    const size_t got = fread(file, 1, (size_t)size, f);
+    fclose(f);
+    memset(file + got, 0, RECOVER_AREA);
+
+    S32 ok = FALSE;
+    U8 *data = NULL;
+    const U8 *p = file;
+    const U8 *end = file + got;
+    const U8 numversion = *p;
+    p += 1 + 4; // num version, num cube
+    while (p < end && *p)
+        p++; // player name
+    p++;
+    const size_t varsAt = 160 * 120 + (size_t)FLAG_ACF * sizeof(S16);
+    const size_t need = varsAt + (size_t)words * sizeof(S16);
+    if (p < end) {
+        const U8 *vars = NULL;
+        if (numversion & SAVE_COMPRESS) {
+            if (p + 4 <= end) {
+                const S32 sizefile = ReadLE_S32(p);
+                p += 4;
+                if (sizefile >= (S32)need && sizefile <= 8 * 1024 * 1024) {
+                    data = (U8 *)malloc((size_t)sizefile + RECOVER_AREA);
+                    if (data) {
+                        ExpandLZ(data, (void *)p, (U32)sizefile, 2);
+                        vars = data + varsAt;
+                    }
+                }
+            }
+        } else if ((size_t)(end - p) >= need) {
+            vars = p + varsAt;
+        }
+        if (vars) {
+            for (S32 i = 0; i < words; i++)
+                out[i] = ReadLE_S16(vars + i * sizeof(S16));
+            ok = TRUE;
+        }
+    }
+    free(data);
+    free(file);
+    return ok;
+}
+
+S32 SaveCollectCinematicFlags(S16 *out, S32 words) {
+    char pathname[ADELINE_MAX_PATH];
+    S32 nb = 0;
+
+    for (S32 i = 0; i < words; i++)
+        out[i] = 0;
+
+    GetSavePath(pathname, ADELINE_MAX_PATH, NULL);
+    DIR *dir = opendir(pathname);
+    if (!dir)
+        return 0;
+    struct dirent *file;
+    while ((file = readdir(dir)) != NULL) {
+        const size_t len = strlen(file->d_name);
+        if (len < 4 || ade_strcasecmp(file->d_name + len - 4, ".lba"))
+            continue;
+        S16 flags[8];
+        if (words > 8)
+            break;
+        GetSavePath(pathname, ADELINE_MAX_PATH, file->d_name);
+        if (ReadCinematicFlagsFromFile(pathname, flags, words)) {
+            for (S32 i = 0; i < words; i++)
+                out[i] |= flags[i];
+            nb++;
+        }
+    }
+    closedir(dir);
+    return nb;
+}
+
 /*──────────────────────────────────────────────────────────────────────────*/
 void LoadGameNumCube() {
     U8 numversion;

@@ -1000,3 +1000,17 @@ void AcfRestoreFlags(const S16 *saved) {
     for (int i = 0; i < ACF_FLAG_WORDS; i++)
         ListVarGame[FLAG_ACF + i] = saved[i];
 }
+
+void AcfNoteSeenFromSaves(void) {
+    S16 flags[ACF_FLAG_WORDS];
+    if (!SaveCollectCinematicFlags(flags, ACF_FLAG_WORDS))
+        return;
+    char name[128];
+    S32 n = 0;
+    ResetAcfList();
+    while (n < ACF_FLAG_WORDS * 16 && GetAcfName(name)) {
+        if (flags[n / 16] & (1 << (n & 15)))
+            Unlocks_Mark(UNLOCK_CATEGORY_VIDEO, name);
+        n++;
+    }
+}

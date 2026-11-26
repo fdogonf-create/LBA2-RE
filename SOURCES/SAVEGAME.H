@@ -43,6 +43,10 @@ extern void CurrentSaveGame(void);
 extern S32 SaveGame(S32 flagmess);
 /*--------------------------------------------------------------------------*/
 extern void LoadGameNumCube(void);
+/* ORs together the FLAG_ACF words (the cinematics each has played) of every
+   save in the save folder, without loading any of them. Returns how many
+   saves were read. */
+extern S32 SaveCollectCinematicFlags(S16 *out, S32 words);
 /*--------------------------------------------------------------------------*/
 extern void LoadGamePlayerName(void);
 /*--------------------------------------------------------------------------*/
