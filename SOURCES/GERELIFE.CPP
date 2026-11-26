@@ -7,6 +7,8 @@
 #include <SYSTEM/LE.H>
 #include <SYSTEM/LOG.H> // lifetrace
 #include "AMBIANCE.H"
+#include "ACTIONHINT.H" /* the A button shown while a script near Twinsen asks for action */
+#include <PLATFORM/PLATFORM.H>
 
 U8 *PtrPrg;
 U8 TypeAnswer;
@@ -86,6 +88,11 @@ void DoFuncLife(T_OBJET *ptrobj) {
         //---------------------------------------------------------------------------
     case LF_ACTION:
         Value = ActionNormal;
+        /* The script is asking whether the action button was pressed: if it
+         * is the script of something near Twinsen and in front of him, the
+         * button would do something now (ACTIONHINT.H). */
+        if (GamepadActionHint AND ptrobj != &ListObjet[NUM_PERSO] AND !CinemaMode AND ListObjet[NUM_PERSO].Move == MOVE_MANUAL AND ActionHint_InReach(ptrobj->Obj.X - ListObjet[NUM_PERSO].Obj.X, ptrobj->Obj.Z - ListObjet[NUM_PERSO].Obj.Z, ListObjet[NUM_PERSO].Obj.Beta))
+            ActionHint_Note((U32)g_platform.system.ticks_ms());
         break;
 
         //---------------------------------------------------------------------------

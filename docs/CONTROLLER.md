@@ -4,7 +4,7 @@ How the manual camera works and which input sources drive it.
 
 ## Menu navigation
 
-UI navigation uses fixed controls, independent of gameplay movement: the left stick and D-pad navigate menus, save lists, inventory, memo pages, the behaviour selector and holomap. RT/LT remain gameplay forward/backward and do not navigate these screens. Confirm, back and item-use buttons retain their existing bindings.
+UI navigation uses fixed controls, independent of gameplay movement: the left stick and D-pad navigate menus, save lists, inventory, memo pages, the behaviour selector and holomap. In the Switch build (`LBA2_MODERN_PAD_DEFAULT`) the right stick navigates the behaviour selector and the inventory too, for as long as either is open (`MenuInput_UseRightStick`). RT/LT remain gameplay forward/backward and do not navigate these screens. Confirm, back and item-use buttons retain their existing bindings.
 
 Keyboard navigation uses arrows and keypad 8/2/4/6. These UI controls are not configurable and have no binding editor or config entries; Options → Controls edits gameplay bindings only. See [MENU.md](MENU.md#navigation).
 
@@ -31,6 +31,7 @@ ignores it, because a recording does not carry the stick's raw axes.
 |-----|---------|---------|-------------|
 | `GamepadAnalogMove` | `pad_analog_move` | 0 (1 on Switch) | left stick walks Twinsen the way it points; 0 = original tank controls |
 | `GamepadDpadZoom` | `pad_dpad_zoom` | 0 (1 on Switch) | D-pad up / down zoom the Auto camera in / out; the distance holds until changed and is saved (`cam_distance`) |
+| `GamepadActionHint` | `pad_action_hint` | 0 (1 on Switch) | A small A button in the top-right corner while the action button would do something: a script of something close in front of Twinsen asking for action, a bonus zone not yet taken, a message zone. It is the script's own question, so it can show for something that answers only at some point of the story |
 | `GamepadBehaviourCycle` | `pad_cycle_behaviour` | 0 (1 on Switch) | a tap of ZL steps normal, sporty, aggressive, discreet and round again |
 | `GamepadCameraCurve` | `cam_stick_curve` | 0 (1 on Switch) | right stick ramps squared, so a small tilt turns the camera gently |
 

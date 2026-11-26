@@ -1054,6 +1054,8 @@ void MenuInventory(U32 tempo) {
     S32 flagproto = FALSE;
     U8 memobulle;
 
+    MenuInput_UseRightStick(TRUE);
+
     // au cas ou l'on soit appelé pendant un eclair
     Palette(PtrPal);
 
@@ -1405,6 +1407,7 @@ void MenuInventory(U32 tempo) {
     InitWaitNoKey();
     /* A held D-pad navigation key must not cast its gameplay spell on return. */
     WaitNoMenuInput();
+    MenuInput_UseRightStick(FALSE);
 }
 
 /*══════════════════════════════════════════════════════════════════════════*

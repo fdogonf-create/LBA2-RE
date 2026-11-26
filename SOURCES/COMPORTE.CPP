@@ -417,6 +417,7 @@ void MenuComportement(S32 affone) {
     T_MENU_COMP *ptrmcomp;
     S32 flagproto = FALSE;
 
+    MenuInput_UseRightStick(TRUE);
     SaveTimer();
 
     UnsetClip();
@@ -652,6 +653,7 @@ void MenuComportement(S32 affone) {
         ObjectSetFrame(&(ptrobj->Obj), 5);
         TimerProto = TimerRefHR + TEMPO_PROTO_AUTO; // 1/2 s
     }
+    MenuInput_UseRightStick(FALSE);
 }
 
 /*══════════════════════════════════════════════════════════════════════════*/

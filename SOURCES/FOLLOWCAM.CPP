@@ -669,7 +669,7 @@ static S32 FollowCamNeededPitch(T_OBJ_3D *ptr3d) {
  * scenery boxes, and answering with a distance rather than a pitch. Terrain is
  * left to the ground lift and the obstruction search, which tilt over it.
  * Returns `want` when nothing is in the way, never less than
- * FOLLOW_CAM_COLLIDE_MIN. */
+ * FOLLOW_CAM_COLLIDE_KEEP percent of the chosen zoom nor FOLLOW_CAM_COLLIDE_MIN. */
 static S32 FollowCamFreeDist(T_OBJ_3D *ptr3d, S32 want) {
     S32 saveX0 = X0, saveY0 = Y0, saveZ0 = Z0;
     S32 searchbeta = 2048 - BetaCam;
@@ -705,6 +705,8 @@ static S32 FollowCamFreeDist(T_OBJ_3D *ptr3d, S32 want) {
     Y0 = saveY0;
     Z0 = saveZ0;
 
+    if (freeDist < FollowCamBaseDist * FOLLOW_CAM_COLLIDE_KEEP / 100)
+        freeDist = FollowCamBaseDist * FOLLOW_CAM_COLLIDE_KEEP / 100;
     if (freeDist < FOLLOW_CAM_COLLIDE_MIN)
         freeDist = FOLLOW_CAM_COLLIDE_MIN;
     if (freeDist > want)
@@ -1177,6 +1179,12 @@ void UpdateFollowCameraExt(void) {
                             if (div > FOLLOW_CAM_OBSTRUCT_EASE)
                                 div = FOLLOW_CAM_OBSTRUCT_EASE;
                         }
+                        /* With collision on, the arm stops short of the
+                         * building and the climb over it does the rest, so it
+                         * climbs briskly; it still comes down at the ordinary,
+                         * lazier pace. */
+                        if (FollowCamCollide AND FollowCamObstructTarget > FollowCamObstructExtra AND div > FOLLOW_CAM_COLLIDE_OBSTRUCT_EASE)
+                            div = FOLLOW_CAM_COLLIDE_OBSTRUCT_EASE;
                         FollowCamObstructExtra = FollowCamEaseValue(FollowCamObstructExtra, FollowCamObstructTarget,
                                                                     div, FOLLOW_CAM_OBSTRUCT_MIN_STEP);
                     }

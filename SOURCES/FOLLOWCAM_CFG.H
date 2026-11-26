@@ -303,17 +303,23 @@
 
 /* Camera collision (Auto camera only; community) ----------------------------*/
 /* On, a building (a scenery box) between the hero and the eye brings the arm in
- * to just short of it at once, and the spring arm takes it back out to the
- * chosen zoom once there is room, as third-person cameras do; the obstruction
- * clearance above then has nothing left to tilt over. Off keeps the classic
- * answer, the view tilting down over the roof. Off by default; a build with
- * LBA2_MODERN_GAMEPAD turns it on. cvar cam_collide. */
+ * at once, but only so far: never closer than FOLLOW_CAM_COLLIDE_KEEP percent of
+ * the chosen zoom, nor than the closest zoom a player can pick. Played on the
+ * Switch, coming in all the way to the wall showed the ground and the scenery at
+ * a range the game was never drawn for. What is left of the building is the
+ * obstruction clearance's to climb over, and with collision on it climbs at
+ * FOLLOW_CAM_COLLIDE_OBSTRUCT_EASE instead of its lazier ordinary pace. The
+ * spring arm takes the boom back out once there is room. Off keeps the classic
+ * answer alone, the view tilting slowly over the roof. Off by default; a build
+ * with LBA2_MODERN_GAMEPAD turns it on. cvar cam_collide. */
 #ifndef FOLLOW_CAM_COLLIDE_DEFAULT
 #define FOLLOW_CAM_COLLIDE_DEFAULT 0
 #endif
-#define FOLLOW_CAM_COLLIDE_FIRST 1000 /* first point tested out from the hero, as SearchCameraPos */
-#define FOLLOW_CAM_COLLIDE_STEP 512   /* march step: a brick, as SearchCameraPos */
-#define FOLLOW_CAM_COLLIDE_MIN 3000   /* never in closer than this (world units) */
+#define FOLLOW_CAM_COLLIDE_FIRST 1000              /* first point tested out from the hero, as SearchCameraPos */
+#define FOLLOW_CAM_COLLIDE_STEP 512                /* march step: a brick, as SearchCameraPos */
+#define FOLLOW_CAM_COLLIDE_MIN FOLLOW_CAM_DIST_MIN /* never in closer than this (world units) */
+#define FOLLOW_CAM_COLLIDE_KEEP 75                 /* nor than this percent of the chosen zoom */
+#define FOLLOW_CAM_COLLIDE_OBSTRUCT_EASE 3         /* obstruction ease divisor with collision on */
 
 /* Gamepad right-stick camera ------------------------------------------------*/
 /* Default right-stick sensitivity (1-10 range). A pad-only build

@@ -36,6 +36,7 @@ extern S32 GfxDitherShading;
 
 #include <SVGA/SCREEN.H>
 #include <SYSTEM/KEYBOARD_KEYS.H>
+#include "ACTIONHINT.H" /* ActionHint_Render, after the touch overlay */
 #include "FOLLOWCAM.H"
 #include "FOLLOWCAM_CFG.H"  /* the *_DEFAULT tunables, read and written by the cfg below */
 #include "FOLLOWCAM_MATH.H" /* FollowCamIsoStep: one frame of the interior follow */
@@ -2219,6 +2220,13 @@ void Message(const char *mess, S32 flag) {
 #define ADD_SIGNED(name, variable) Crash_AddState(name, (const void *)&(variable), sizeof(variable), 1)
 #define ADD_UNSIGNED(name, variable) Crash_AddState(name, (const void *)&(variable), sizeof(variable), 0)
 
+/* The overlays drawn over the presented frame: the touch pad, then the action
+   hint (ACTIONHINT.H), each a no-op when it has nothing to draw. */
+static void OverlayPrePresent(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const U8 *palette_rgb) {
+    TouchOverlay_Render(frameBuffer, pitch, width, height, palette_rgb);
+    ActionHint_Render(frameBuffer, pitch, width, height, palette_rgb);
+}
+
 /* A suspended app may be ended by the system with no exit, so TheEndInfo's
    write never runs: keep the settings when the app is suspended instead. */
 static void SaveSettingsOnSuspend(void) {
@@ -2645,7 +2653,7 @@ int Lba2Main(int argc, char *argv[]) {
        nothing to say why. TouchOverlay_Render is a no-op when there is
        nothing to draw. */
     TouchOverlay_Init();
-    SetOverlayPrePresentCallback(TouchOverlay_Render);
+    SetOverlayPrePresentCallback(OverlayPrePresent);
 
     /* Perftrace: ring-buffer per-frame timing capture; off by default, opt-in
        via the `perftrace` console verb. See docs/PERFTRACE.md. */

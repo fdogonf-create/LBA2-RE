@@ -24,6 +24,8 @@
 #include <stdint.h>
 #include "AMBIANCE.H"
 #include "ANALOGMOVE.H" /* the left stick walking Twinsen the way it points */
+#include "ACTIONHINT.H" /* the A button shown in a zone the action button works in */
+#include <PLATFORM/PLATFORM.H>
 
 extern S32 FlagAnimWhoSpeak; // MESSAGE.CPP
 
@@ -6684,6 +6686,8 @@ void CheckZoneSce(T_OBJET *ptrobj, U8 numobj) {
 
             case 4: // zone giver
                 if (numobj == NUM_PERSO) {
+                    if (!ptrz->Info2 AND !CinemaMode) /* not yet taken: the A button would give it */
+                        ActionHint_Note((U32)g_platform.system.ticks_ms());
                     if (ActionNormal == 1) {
                         InitAnim(GEN_ANIM_ACTION, ANIM_ALL_THEN, NUM_PERSO);
                         ZoneGiveExtraBonus(ptrz);
@@ -6694,6 +6698,8 @@ void CheckZoneSce(T_OBJET *ptrobj, U8 numobj) {
 
             case 5: // zone message
                 if (numobj == NUM_PERSO) {
+                    if (!CinemaMode)
+                        ActionHint_Note((U32)g_platform.system.ticks_ms());
                     GereZoneMessage(ptrobj, ptrz);
                 }
                 break;
