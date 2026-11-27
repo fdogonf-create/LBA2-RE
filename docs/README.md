@@ -147,4 +147,4 @@ The record of what is true about the engine and why, kept as an [OKF v0.2](https
 | Resource | Description |
 |----------|-------------|
 | [LBA Classic Doc](https://lba-classic-doc.readthedocs.io/) | Read the Docs: engine documentation. |
-| [README Links](../README.md#links) | Official site, Discord, GOG/Steam. |
+| [README Links](../README.md#enlaces-de-la-comunidad) | Official site, Discord, GOG/Steam. |

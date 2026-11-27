@@ -40,7 +40,7 @@ tables themselves:
 
 ## Tier 1 — build & run
 
-The default SDL3 build needs all five. An SDL2 build substitutes the optional SDK listed under tier 3; the null platform with null audio needs neither SDL SDK. The root [README](../README.md#prerequisites) states the default set for players building from source.
+The default SDL3 build needs all five. An SDL2 build substitutes the optional SDK listed under tier 3; the null platform with null audio needs neither SDL SDK. The root [README](../README.md#requisitos) states the default set for players building from source.
 
 | Tool | Needed for | Version owner | Install |
 |------|-----------|---------------|---------|
