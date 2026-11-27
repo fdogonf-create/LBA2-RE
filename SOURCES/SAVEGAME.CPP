@@ -476,9 +476,8 @@ void CurrentSaveGame() {
 
     NumVersion = NUM_VERSION; // Sauvegarde non compactee
 
-    s_saveInBackground = TRUE;
+    /* Written at once: the menu that follows lists the saves folder. */
     SaveGame(FALSE);
-    s_saveInBackground = FALSE;
 
     NumVersion = memonumversion;
     strcpy(PlayerName, memoplayername);
@@ -714,6 +713,7 @@ S32 SaveCollectCinematicFlags(S16 *out, S32 words) {
     for (S32 i = 0; i < words; i++)
         out[i] = 0;
 
+    WaitBackgroundWrites(); /* the folder listed with no save half written */
     GetSavePath(pathname, ADELINE_MAX_PATH, NULL);
     DIR *dir = opendir(pathname);
     if (!dir)

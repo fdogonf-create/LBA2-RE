@@ -28,7 +28,8 @@
 #include <SYSTEM/ANDROID.H>
 #include <SYSTEM/KEYBOARD.H>
 #include <SYSTEM/KEYBOARD_KEYS.H>
-#include <SYSTEM/LOG.H> /* Log_Warn (askchoice drive hook) */
+#include <SYSTEM/LOG.H>   /* Log_Warn (askchoice drive hook) */
+#include <SYSTEM/FILES.H> /* WaitBackgroundWrites */
 #include <SYSTEM/STRING.H>
 #include <SYSTEM/WINDOW.H>
 #include <SYSTEM/MOUSE.H>
@@ -937,6 +938,7 @@ S32 PlayerGameList(char **ptrlistname, char *listname, S32 flagnew) {
     char **startptrlist = ptrlistname;
     U8 wbyte;
 
+    WaitBackgroundWrites(); /* the folder listed with no save half written */
     GetSavePath(pathname, ADELINE_MAX_PATH, NULL);
     dir = opendir(pathname);
     if (dir != NULL) {
@@ -980,7 +982,10 @@ S32 PlayerGameList(char **ptrlistname, char *listname, S32 flagnew) {
             }
         }
         closedir(dir);
+    } else {
+        Log_Warn("saves: cannot open the folder \"%s\"", pathname);
     }
+    Log_Info("saves: %d listed", (int)nb);
 
     qsort((void *)startptrlist, nb, sizeof(char *), my_sort_function);
 
@@ -1105,6 +1110,7 @@ S32 FindPlayerFile() {
     S32 wlong;
     U8 wbyte;
 
+    WaitBackgroundWrites(); /* the folder listed with no save half written */
     GetSavePath(pathname, ADELINE_MAX_PATH, NULL);
     dir = opendir(pathname);
     if (dir != NULL) {
