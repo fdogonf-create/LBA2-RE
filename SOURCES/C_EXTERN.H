@@ -106,6 +106,15 @@ extern U32 ParmSampleDecalage;
 extern U32 ParmSampleFrequence;
 
 extern S32 DetailLevel;
+/* Movie size: 0 original, 1 fit to the screen, 2 fill it. The Switch build
+   (LBA2_MODERN_PAD_DEFAULT) starts at fill. */
+#ifndef LBA2_VIDEO_FULLSCREEN_DEFAULT
+#if defined(LBA2_MODERN_PAD_DEFAULT) && LBA2_MODERN_PAD_DEFAULT
+#define LBA2_VIDEO_FULLSCREEN_DEFAULT 2
+#else
+#define LBA2_VIDEO_FULLSCREEN_DEFAULT 1
+#endif
+#endif
 extern S32 VideoFullScreen;
 extern S32 DisplayFullScreen;
 extern S32 DisplayVSync;

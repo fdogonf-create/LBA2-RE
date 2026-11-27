@@ -282,6 +282,7 @@ extern S32 FollowCamGround;               /* smooth terrain ground-clearance lif
 extern S32 FollowCamGroundClearance;      /* keep the eye this far above the ground under it */
 extern S32 FollowCamManualHoldFrames;     /* manual-override hold length (cvar cam_manual_hold) */
 extern S32 FollowCamHoldAngle;            /* hold manual rotation, no auto-recenter drift (cvar cam_hold_angle) */
+extern S32 FollowCamCollide;              /* arm comes in short of a building (cvar cam_collide) */
 extern S32 FollowCamZoneReturn;           /* give a shot's yaw and pitch back on leaving its box (cvar cam_zone_return) */
 extern S32 FollowCamZoneAnchor;           /* hold a latching shot's world yaw while inside its box (cvar cam_zone_anchor) */
 extern S32 FollowCamZoneHeight;           /* keep a lent shot's eye height: aim above the hero, floor under the eye (cvar cam_zone_height) */

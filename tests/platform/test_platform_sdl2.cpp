@@ -71,6 +71,44 @@ static void test_present_filter_and_surface_recreation() {
     g_platform.window.shutdown();
 }
 
+/* A backdrop shows where the frame still has its key, under anything drawn
+   over it, scaled to its rectangle and dimmed with a palette fade. */
+static void test_present_backdrop() {
+    ASSERT_TRUE(g_platform.window.init("SDL2 backdrop"));
+    ASSERT_TRUE(g_platform.window.create(120, 90, false));
+    ASSERT_TRUE(g_platform.window.resize(16, 12, true));
+    uint8_t pixels[16 * 12], palette[768] = {}, key[8 * 6];
+    palette[3] = palette[4] = palette[5] = 255; /* 1 white */
+    palette[6] = 255;                           /* 2 red */
+    memset(pixels, 1, sizeof(pixels));
+    memset(key, 1, sizeof(key));
+    pixels[6 * 16 + 6] = 2; /* drawn over the backdrop */
+    const uint32_t green[4] = {0xFF00FF00u, 0xFF00FF00u, 0xFF00FF00u, 0xFF00FF00u};
+    PlatformBackdrop backdrop = {green, 2, 2, 4, 4, 8, 6, key, palette, 1};
+    PlatformFrame frame = {pixels, 16, 12, 16, palette, NULL, &backdrop};
+    SDL2_SetPresentationProbe(read_pixels);
+    ASSERT_TRUE(g_platform.window.present(&frame));
+    ASSERT_EQ_UINT(0x0000FF00u, rendered[40 * 120 + 40] & 0x00FFFFFFu);
+    ASSERT_EQ_UINT(0x00FF0000u, rendered[48 * 120 + 48] & 0x00FFFFFFu);
+    ASSERT_EQ_UINT(0x00FFFFFFu, rendered[10 * 120 + 10] & 0x00FFFFFFu);
+    ASSERT_EQ_UINT(0x00FFFFFFu, rendered[80 * 120 + 100] & 0x00FFFFFFu);
+
+    uint8_t faded[768];
+    for (int i = 0; i < 768; ++i)
+        faded[i] = (uint8_t)(palette[i] / 2);
+    frame.palette_rgb = faded;
+    ASSERT_TRUE(g_platform.window.present(&frame));
+    const uint32_t g = (rendered[40 * 120 + 40] >> 8) & 0xFF;
+    ASSERT_TRUE(g >= 0x70 && g <= 0x90);
+
+    frame.palette_rgb = palette;
+    frame.backdrop = NULL;
+    ASSERT_TRUE(g_platform.window.present(&frame));
+    ASSERT_EQ_UINT(0x00FFFFFFu, rendered[40 * 120 + 40] & 0x00FFFFFFu);
+    SDL2_SetPresentationProbe(NULL);
+    g_platform.window.shutdown();
+}
+
 static void test_window_frames_modes_and_lifetime() {
     ASSERT_TRUE(g_platform.capabilities.windowed);
     ASSERT_TRUE(!g_platform.capabilities.transient_window_loss && !g_platform.capabilities.touch_overlay);
@@ -628,6 +666,7 @@ int main() {
     ASSERT_TRUE(g_platform.events.init());
     RUN_TEST(test_window_frames_modes_and_lifetime);
     RUN_TEST(test_present_filter_and_surface_recreation);
+    RUN_TEST(test_present_backdrop);
     RUN_TEST(test_event_payloads_and_borrowed_text);
     RUN_TEST(test_keyboard_and_gamepad_instance_ids);
     RUN_TEST(test_translated_event_union_bytes);

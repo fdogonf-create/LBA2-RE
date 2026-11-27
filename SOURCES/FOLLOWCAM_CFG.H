@@ -89,8 +89,12 @@
  * camera (Enter / gamepad B), like a free third-person camera. Off restores the
  * classic lazy drift-back, or with the world anchor the return paced by distance
  * walked. Off by default, so the anchored camera comes back behind the hero.
- * cvar cam_hold_angle. */
+ * A build with LBA2_MODERN_GAMEPAD turns it on: with the left stick moving the
+ * hero relative to the camera, a camera that swings round by itself as he walks
+ * fights the right stick. cvar cam_hold_angle. */
+#ifndef FOLLOW_CAM_HOLD_ANGLE_DEFAULT
 #define FOLLOW_CAM_HOLD_ANGLE_DEFAULT 0
+#endif
 
 /* World anchor -----------------------------------------------------------------*/
 /* What the camera's horizontal angle is held against. Off, it is an offset from
@@ -169,20 +173,38 @@
 #define FOLLOW_CAM_ISO_GLIDE_MAX_MS 1500
 
 /* Elevation (AlphaCam) — applies when Auto camera (FollowCamera) is on -----*/
+/* The Switch build (LBA2_MODERN_GAMEPAD) sets its own ALPHA_MIN and DIST_MIN:
+ * chosen in play so the ground's edge never shows black at the screen's edge. */
+#ifndef FOLLOW_CAM_ALPHA_MIN
 #define FOLLOW_CAM_ALPHA_MIN 150 /* minimum elevation angle */
+#endif
+#ifndef FOLLOW_CAM_ALPHA_MAX
 #define FOLLOW_CAM_ALPHA_MAX 600 /* maximum elevation angle */
-#define FOLLOW_CAM_ALPHA_STEP 5  /* elevation change per numpad +/- key press */
+#endif
+#define FOLLOW_CAM_ALPHA_STEP 5 /* elevation change per numpad +/- key press */
 
 /* Zoom (numpad * / /) — adjusts default arm distance -----------------------*/
-#define FOLLOW_CAM_ZOOM_STEP 200  /* distance change per frame while key held */
-#define FOLLOW_CAM_DIST_MIN 7000  /* closest the player can zoom in (must clear hero mesh) */
+#define FOLLOW_CAM_ZOOM_STEP 200 /* distance change per frame while key held */
+#ifndef FOLLOW_CAM_DIST_MIN
+#define FOLLOW_CAM_DIST_MIN 7000 /* closest the player can zoom in (must clear hero mesh) */
+#endif
+#ifndef FOLLOW_CAM_DIST_MAX
 #define FOLLOW_CAM_DIST_MAX 20000 /* furthest the player can zoom out */
+#endif
 /* Resting arm length: the midpoint of the two VueCamera presets
  * (DefVueDistance[0]=10500, DefVueDistance[1]=17000). Set on the first frame and
  * restored by Center camera, so this is the zoom a player returns to. Unlike the
  * rest of this header it expands to engine state, so it is usable only where
  * DefVueDistance is declared. */
 #define FOLLOW_CAM_INITIAL_DIST ((DefVueDistance[0] + DefVueDistance[1]) / 2)
+/* Whether Center camera keeps the zoom the player chose rather than putting the
+ * arm back to FOLLOW_CAM_INITIAL_DIST. Off as the camera has always been; a build
+ * with LBA2_MODERN_GAMEPAD turns it on, where Center camera sits on a face button
+ * a player presses often and the zoom is a choice made once (cam_distance keeps
+ * it from one run to the next). */
+#ifndef FOLLOW_CAM_CENTER_KEEPS_ZOOM
+#define FOLLOW_CAM_CENTER_KEEPS_ZOOM 0
+#endif
 
 /* Interior follow (FollowCamInterior) ---------------------------------------*/
 /* Community addition, off by default like the exterior Auto camera it is named beside. On, the
@@ -288,6 +310,26 @@
  * second at a time by the covered bridge. */
 #define FOLLOW_CAM_OBSTRUCT_HIDDEN_STEP 20   /* extra pitch added per frame he is still hidden (AlphaCam units) */
 #define FOLLOW_CAM_OBSTRUCT_FLOOR_REACH 2048 /* distance on either axis over which a floor is kept (world units, four bricks) */
+
+/* Camera collision (Auto camera only; community) ----------------------------*/
+/* On, a building (a scenery box) between the hero and the eye brings the arm in
+ * at once, but only so far: never closer than FOLLOW_CAM_COLLIDE_KEEP percent of
+ * the chosen zoom, nor than the closest zoom a player can pick. Played on the
+ * Switch, coming in all the way to the wall showed the ground and the scenery at
+ * a range the game was never drawn for. What is left of the building is the
+ * obstruction clearance's to climb over, and with collision on it climbs at
+ * FOLLOW_CAM_COLLIDE_OBSTRUCT_EASE instead of its lazier ordinary pace. The
+ * spring arm takes the boom back out once there is room. Off keeps the classic
+ * answer alone, the view tilting slowly over the roof. Off by default; a build
+ * with LBA2_MODERN_GAMEPAD turns it on. cvar cam_collide. */
+#ifndef FOLLOW_CAM_COLLIDE_DEFAULT
+#define FOLLOW_CAM_COLLIDE_DEFAULT 0
+#endif
+#define FOLLOW_CAM_COLLIDE_FIRST 1000              /* first point tested out from the hero, as SearchCameraPos */
+#define FOLLOW_CAM_COLLIDE_STEP 512                /* march step: a brick, as SearchCameraPos */
+#define FOLLOW_CAM_COLLIDE_MIN FOLLOW_CAM_DIST_MIN /* never in closer than this (world units) */
+#define FOLLOW_CAM_COLLIDE_KEEP 75                 /* nor than this percent of the chosen zoom */
+#define FOLLOW_CAM_COLLIDE_OBSTRUCT_EASE 3         /* obstruction ease divisor with collision on */
 
 /* Gamepad right-stick camera ------------------------------------------------*/
 /* Default right-stick sensitivity (1-10 range). A pad-only build

@@ -22,5 +22,12 @@ extern S32 MenuInput_NavigationKey(void);
 /* Poll-stream sample: physical directions plus console isolation. -1 ends replay injection. */
 extern U32 MenuInput_Capture(S32 isolated, U32 reservedKey);
 extern void MenuInput_SetReplaySample(S32 sample);
+/* While on, the right stick navigates as well. The behaviour and inventory menus
+ * turn it on for as long as they are open, in a build with LBA2_MODERN_PAD_DEFAULT
+ * (the Switch build), where the left stick is the only other stick; elsewhere it
+ * does nothing. */
+extern void MenuInput_UseRightStick(S32 on);
+/* TRUE while a menu has the right stick, so the camera gives up its share. */
+extern S32 MenuInput_RightStickOn(void);
 
 #endif

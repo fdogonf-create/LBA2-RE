@@ -180,6 +180,7 @@ PlatformInterface Interface() {
     api.window.set_relative_mouse = PointerMode;
     api.window.set_mouse_grab = PointerMode;
     api.window.present = Uwp_Present;
+    api.window.present_video = Uwp_PresentVideo;
     api.input.keyboard_state = Uwp_KeyboardState;
     api.input.keycode = Uwp_Keycode;
     api.input.scancode_name = Uwp_ScancodeName;

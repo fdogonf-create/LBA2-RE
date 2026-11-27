@@ -10,8 +10,9 @@
 #include <SYSTEM/LE.H>
 #include "PERSO.H" /* WriteConfigFile (persist on resolution change) */
 #include "RES_MENU.H"
-#include "RETAILFIX.H"  /* the Fix retail bugs row */
-#include "RES_SWITCH.H" /* Res_Switch (apply on cycle) */
+#include "RETAILFIX.H"    /* the Fix retail bugs row */
+#include "COMBATASSIST.H" /* the Improved combat row */
+#include "RES_SWITCH.H"   /* Res_Switch (apply on cycle) */
 #include "MENU_KEYNAV.H"
 #include "MENU_INPUT.H"
 #include "SAVENAME_VALIDATION.H"
@@ -19,6 +20,7 @@
 #include "MESSAGE.H"
 #include "IMAGE_LOAD.H"
 #include "MENU_LABELS.H"
+#include "VIDEOTECA.H"
 
 #include <FILEIO/SAVEPNG.H>
 #include <SVGA/SCREEN.H>
@@ -26,7 +28,8 @@
 #include <SYSTEM/ANDROID.H>
 #include <SYSTEM/KEYBOARD.H>
 #include <SYSTEM/KEYBOARD_KEYS.H>
-#include <SYSTEM/LOG.H> /* Log_Warn (askchoice drive hook) */
+#include <SYSTEM/LOG.H>   /* Log_Warn (askchoice drive hook) */
+#include <SYSTEM/FILES.H> /* WaitBackgroundWrites */
 #include <SYSTEM/STRING.H>
 #include <SYSTEM/WINDOW.H>
 #include <SYSTEM/MOUSE.H>
@@ -55,9 +58,8 @@
 #define COUL_TEXT_MENU LBAWHITE // trouver blanc palette jeu
 #define COUL_LETTER_INPUT LBAWHITE
 
-#ifdef DEMO
+// Greyed-out row text: the demo's save and load, a movie not yet seen.
 #define COUL_TEXT_MENU_DISABLE (3 * 16 + 11) // trouver blanc palette jeu
-#endif
 
 #define SCREEN_SAVE_WIDTH 160
 #define SCREEN_SAVE_HEIGHT 120
@@ -79,7 +81,7 @@ S32 LargeurMenu = 550;
 S32 FlagShowEndDemo = FALSE;
 #endif
 
-#define MAX_MAIN_MENUS 6
+#define MAX_MAIN_MENUS 7
 
 // Menu IDs are placed outside the DEBUG_TOOLS return code range (2000/2001)
 #define MENU_ID_SOUND_VOLUME 2100
@@ -105,6 +107,14 @@ S32 FlagShowEndDemo = FALSE;
 #define MENU_ID_TEXTURE_FILTER 2120
 #define MENU_ID_DITHER_SHADING 2121
 #define MENU_ID_PRESENT_FILTER 2122
+#define MENU_ID_VIDEOTECA 2123
+#define MENU_ID_VIDEOTECA_PAGE 2124
+#define MENU_ID_VIDEOTECA_PREV 2125
+#define MENU_ID_VIDEOTECA_NEXT 2126
+#define MENU_ID_COMBAT_ASSIST 2127
+// Movie library rows: MENU_ID_VIDEO_BASE + the row's place on the page.
+#define MENU_ID_VIDEO_BASE 2300
+#define VIDEOTECA_PER_PAGE 6
 
 // Resolution sub-page rows occupy a reserved id range: row i carries id
 // MENU_ID_RESOLUTION_BASE + i, which BuildCustomMenuText and GereResolutionMenu
@@ -113,6 +123,8 @@ S32 FlagShowEndDemo = FALSE;
 
 #define MENU_TYPE_TEXT_LANGUAGE 8
 #define MENU_TYPE_VOICE_LANGUAGE 9
+// A movie library row: left and right turn the page.
+#define MENU_TYPE_VIDEO_ROW 10
 
 char NewGameTxt[MULTI_TEXT_MAX];
 
@@ -132,6 +144,8 @@ U16 RealGameMainMenu[] = {
     72, // charger partie
     0,
     73, // sauver partie
+    0,
+    MENU_ID_VIDEOTECA, // videoteca, when the list has room for it
     0,
     74, // Options
     0,
@@ -156,6 +170,8 @@ U16 GameOptionMenu[] = {
     MENU_ID_ADVANCED_OPTIONS,
     0,
     MENU_ID_CONTROLLER,
+    0,
+    MENU_ID_VIDEOTECA, // only when OptionsMenu is reached from the main menu
 };
 
 // Display submenu: a "Resolution: <current>" row that opens the resolution
@@ -209,6 +225,26 @@ static U16 ResolutionMenu[4 + (1 + DISPLAY_MENU_MAX_ENTRIES) * 2];
 // select bitmask.
 static S32 s_menuMarkRow = -1;
 
+// Movie library page being shown, and what it shows (GereVideotecaMenu).
+static S32 s_vtPage = 0;
+static S32 s_vtSeen = 0;
+static S32 s_vtTotal = 0;
+static U16 VideotecaMenu[4 + (2 + VIDEOTECA_PER_PAGE) * 2];
+// The page's row texts, made once when the page is built: the menu redraws
+// the selected row every frame, and a title reads a file.
+static char s_vtRowText[VIDEOTECA_PER_PAGE][256];
+
+static S32 VideotecaPages(void) {
+    return s_vtTotal > 0 ? (s_vtTotal + VIDEOTECA_PER_PAGE - 1) / VIDEOTECA_PER_PAGE : 1;
+}
+
+// The movie library row's place in the whole list, or -1 when num is not one.
+static S32 VideotecaRowIndex(S32 num) {
+    if (num < MENU_ID_VIDEO_BASE || num >= MENU_ID_VIDEO_BASE + VIDEOTECA_PER_PAGE)
+        return -1;
+    return s_vtPage * VIDEOTECA_PER_PAGE + (num - MENU_ID_VIDEO_BASE);
+}
+
 // Controller submenu: split keyboard remap and gamepad remap under one parent
 // so adding the pad doesn't clutter the top-level Options screen.
 U16 ControllerMenu[] = {
@@ -247,7 +283,7 @@ U16 LanguageMenu[] = {
 
 U16 AdvancedOptionMenu[] = {
     0,   // selected
-    8,   // nb entries
+    9,   // nb entries
     260, // y center
     0,   // .dia num
 
@@ -267,6 +303,8 @@ U16 AdvancedOptionMenu[] = {
     MENU_ID_DISPLAY_TEXT,
     0,
     MENU_ID_RETAIL_FIXES,
+    0,
+    MENU_ID_COMBAT_ASSIST,
 };
 
 // Camera submenu: the outdoor camera (Auto or Classic) and the indoor one
@@ -483,7 +521,24 @@ static void BuildCustomMenuText(S32 num, char *string) {
         return;
     }
 
+    {
+        const S32 index = VideotecaRowIndex(num);
+        if (index >= 0) {
+            strcpy(string, s_vtRowText[num - MENU_ID_VIDEO_BASE]);
+            return;
+        }
+    }
+
     switch (num) {
+    case MENU_ID_VIDEOTECA:
+        CopyUtf8ToCp850(string, 256, GetLocalizedMenuLabel(MENU_LABEL_VIDEOTECA));
+        break;
+
+    case MENU_ID_VIDEOTECA_PAGE:
+        FormatUtf8ToCp850(string, 256, GetLocalizedMenuLabel(MENU_LABEL_VIDEOTECA_PAGE),
+                          (int)s_vtPage + 1, (int)VideotecaPages(), (int)s_vtSeen, (int)s_vtTotal);
+        break;
+
     case MENU_ID_SOUND_VOLUME:
         GetMultiText(11, string);
         break;
@@ -538,8 +593,9 @@ static void BuildCustomMenuText(S32 num, char *string) {
 
     case MENU_ID_VIDEO_SIZE:
         CopyUtf8ToCp850(string, 256,
-                        GetLocalizedMenuLabel(VideoFullScreen ? MENU_LABEL_MOVIE_FIT
-                                                              : MENU_LABEL_MOVIE_ORIGINAL));
+                        GetLocalizedMenuLabel(VideoFullScreen == 2 ? MENU_LABEL_MOVIE_FILL
+                                              : VideoFullScreen    ? MENU_LABEL_MOVIE_FIT
+                                                                   : MENU_LABEL_MOVIE_ORIGINAL));
         break;
 
     case MENU_ID_DISPLAY_FULLSCREEN:
@@ -567,9 +623,12 @@ static void BuildCustomMenuText(S32 num, char *string) {
     case MENU_ID_PRESENT_FILTER: {
         const S32 v = RenderRowValue(num);
         CopyUtf8ToCp850(string, 256,
-                        GetLocalizedMenuLabel(v == PLATFORM_FILTER_PIXELART ? MENU_LABEL_PRESENT_PIXELART
-                                              : v == PLATFORM_FILTER_LINEAR ? MENU_LABEL_PRESENT_LINEAR
-                                                                            : MENU_LABEL_PRESENT_NEAREST));
+                        GetLocalizedMenuLabel(v == PLATFORM_FILTER_SMOOTH_CRT ? MENU_LABEL_PRESENT_SMOOTH_CRT
+                                              : v == PLATFORM_FILTER_CRT      ? MENU_LABEL_PRESENT_CRT
+                                              : v == PLATFORM_FILTER_SMOOTH   ? MENU_LABEL_PRESENT_SMOOTH
+                                              : v == PLATFORM_FILTER_PIXELART ? MENU_LABEL_PRESENT_PIXELART
+                                              : v == PLATFORM_FILTER_LINEAR   ? MENU_LABEL_PRESENT_LINEAR
+                                                                              : MENU_LABEL_PRESENT_NEAREST));
         break;
     }
 
@@ -594,6 +653,11 @@ static void BuildCustomMenuText(S32 num, char *string) {
                         GetLocalizedMenuLabel(RetailFixes == RETAIL_FIXES_NO       ? MENU_LABEL_RETAIL_FIXES_NO
                                               : RetailFixes == RETAIL_FIXES_CUSTOM ? MENU_LABEL_RETAIL_FIXES_CUSTOM
                                                                                    : MENU_LABEL_RETAIL_FIXES_YES));
+        break;
+
+    case MENU_ID_COMBAT_ASSIST:
+        CopyUtf8ToCp850(string, 256,
+                        GetLocalizedMenuLabel(CombatAssist ? MENU_LABEL_COMBAT_ASSIST_ON : MENU_LABEL_COMBAT_ASSIST_OFF));
         break;
 
     case MENU_ID_GENERAL_VOLUME:
@@ -874,6 +938,7 @@ S32 PlayerGameList(char **ptrlistname, char *listname, S32 flagnew) {
     char **startptrlist = ptrlistname;
     U8 wbyte;
 
+    WaitBackgroundWrites(); /* the folder listed with no save half written */
     GetSavePath(pathname, ADELINE_MAX_PATH, NULL);
     dir = opendir(pathname);
     if (dir != NULL) {
@@ -917,7 +982,10 @@ S32 PlayerGameList(char **ptrlistname, char *listname, S32 flagnew) {
             }
         }
         closedir(dir);
+    } else {
+        Log_Warn("saves: cannot open the folder \"%s\"", pathname);
     }
+    Log_Info("saves: %d listed", (int)nb);
 
     qsort((void *)startptrlist, nb, sizeof(char *), my_sort_function);
 
@@ -1042,6 +1110,7 @@ S32 FindPlayerFile() {
     S32 wlong;
     U8 wbyte;
 
+    WaitBackgroundWrites(); /* the folder listed with no save half written */
     GetSavePath(pathname, ADELINE_MAX_PATH, NULL);
     dir = opendir(pathname);
     if (dir != NULL) {
@@ -2533,6 +2602,11 @@ void DrawGameMenu(U16 *ptrmenu, S32 justone) {
         if (n == s_menuMarkRow)
             sel |= 2;
 
+        // A movie library row not yet seen reads greyed out.
+        const U8 memoCoulText = CoulTextMenu;
+        if (VideotecaRowIndex(num) >= s_vtSeen)
+            CoulTextMenu = COUL_TEXT_MENU_DISABLE;
+
         if (justone) {
             // Per-frame redraw animates the plasma. Refresh the cursor row and,
             // when set, the green marker row, so the marker persists and animates
@@ -2543,6 +2617,7 @@ void DrawGameMenu(U16 *ptrmenu, S32 justone) {
         } else {
             DrawOneChoice(UI_CENTER_X, y, type, num, sel);
         }
+        CoulTextMenu = memoCoulText;
 
         y += HAUTEUR_STANDARD + MENU_SPACE;
     }
@@ -2915,6 +2990,18 @@ S32 DoGameMenu(U16 *ptrmenu) {
         case 0: // text normal
             break;
 
+        case MENU_TYPE_VIDEO_ROW:
+            if (MenuInput_Get() & (MENU_INPUT_LEFT | MENU_INPUT_RIGHT)) {
+                const S32 left = (MenuInput_Get() & MENU_INPUT_LEFT) != 0;
+                ptrmenu[0] = selected;
+                InitWaitNoInput(left ? I_LEFT : I_RIGHT);
+                MenuInput_Suppress(left ? MENU_INPUT_LEFT : MENU_INPUT_RIGHT);
+                InitWaitNoKey();
+                AsciiMode = FALSE;
+                return left ? MENU_ID_VIDEOTECA_PREV : MENU_ID_VIDEOTECA_NEXT;
+            }
+            break;
+
         case 2: // volume sample
 
             if ((MenuInput_Get() & MENU_INPUT_LEFT)
@@ -3216,6 +3303,14 @@ S32 DoGameMenu(U16 *ptrmenu) {
 /*══════════════════════════════════════════════════════════════════════════*/
 /*──────────────────────────────────────────────────────────────────────────*/
 
+/* Write the config as an options page closes, so its choices are kept even if
+   the game is then closed from the console's menu (HOME with a page still open
+   is covered by the save on suspend). Once per page, not per choice: writing to
+   the SD card on every press made the menus slow. */
+static void KeepMenuChoices(void) {
+    WriteConfigFile();
+}
+
 S32 GereVolumeMenu(void) {
     S32 select;
     S32 flag = 0;
@@ -3254,6 +3349,8 @@ S32 GereVolumeMenu(void) {
             break;
         }
     }
+
+    KeepMenuChoices();
 
     SetVolumeJingle(JingleVolume);
 
@@ -3307,6 +3404,10 @@ S32 GereLanguageMenu(void) {
 #endif
         }
     }
+
+    /* Keep the choice now rather than at a clean exit, which a console's
+       system menu may never give the game; the resolution page does the same. */
+    WriteConfigFile();
 
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
@@ -3544,6 +3645,8 @@ S32 GereDisplayMenu(void) {
         }
     }
 
+    KeepMenuChoices();
+
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
 
@@ -3585,6 +3688,8 @@ S32 GereCameraMenu(void) {
             break;
         }
     }
+
+    KeepMenuChoices();
 
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
@@ -3629,11 +3734,15 @@ S32 GereAdvancedOptionsMenu(void) {
             break;
 
         case MENU_ID_VIDEO_SIZE:
-            VideoFullScreen ^= 1;
+            VideoFullScreen = (VideoFullScreen + 1) % 3;
             break;
 
         case MENU_ID_RETAIL_FIXES:
             RetailFix_MenuSelect();
+            break;
+
+        case MENU_ID_COMBAT_ASSIST:
+            CombatAssist ^= 1;
             break;
 
         case MENU_ID_DISPLAY_TEXT:
@@ -3645,6 +3754,10 @@ S32 GereAdvancedOptionsMenu(void) {
             break;
         }
     }
+
+    /* Keep the choices now: a console's system menu may close the game
+       without the clean exit that writes the config. */
+    WriteConfigFile();
 
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
@@ -3687,6 +3800,8 @@ S32 GereControllerMenu(void) {
         }
     }
 
+    KeepMenuChoices();
+
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
 
@@ -3698,6 +3813,140 @@ S32 GereControllerMenu(void) {
 /*══════════════════════════════════════════════════════════════════════════*/
 /*══════════════════════════════════════════════════════════════════════════*/
 /*──────────────────────────────────────────────────────────────────────────*/
+
+/* The menu backdrop with the menu's own shading, ready for DoGameMenu to draw
+   on. */
+static void VideotecaBackdrop(void) {
+    CopyScreen(Screen, Log);
+    if (FlagShadeMenu)
+        ShadeBoxBlk(0, 0, (S32)ModeDesiredX - 1, (S32)ModeDesiredY - 1, SCREEN_SHADE_LVL);
+    BoxStaticAdd(0, 0, (S32)ModeDesiredX - 1, (S32)ModeDesiredY - 1);
+}
+
+static void BuildVideotecaMenu(void) {
+    const S32 pages = VideotecaPages();
+    U16 *p = VideotecaMenu + 4;
+    U16 nb = 0;
+
+    if (s_vtPage >= pages)
+        s_vtPage = pages - 1;
+    if (s_vtPage < 0)
+        s_vtPage = 0;
+
+    *p++ = 0;
+    *p++ = 26; // menu precedent
+    nb++;
+    for (S32 i = 0; i < VIDEOTECA_PER_PAGE; i++) {
+        const S32 index = s_vtPage * VIDEOTECA_PER_PAGE + i;
+        if (index >= s_vtTotal)
+            break;
+        if (index < s_vtSeen) {
+            const char *name = Videoteca_SeenName(index);
+            char title[128];
+            char line[192];
+            Videoteca_Title(name, title, sizeof title);
+            snprintf(line, sizeof line, Videoteca_HasHd(name) ? "%d. %s (HD)" : "%d. %s",
+                     (int)index + 1, title);
+            CopyUtf8ToCp850(s_vtRowText[i], sizeof s_vtRowText[i], line);
+        } else {
+            snprintf(s_vtRowText[i], sizeof s_vtRowText[i], "%d. ? ? ?", (int)index + 1);
+        }
+        *p++ = MENU_TYPE_VIDEO_ROW;
+        *p++ = (U16)(MENU_ID_VIDEO_BASE + i);
+        nb++;
+    }
+    if (pages > 1) {
+        *p++ = MENU_TYPE_VIDEO_ROW;
+        *p++ = MENU_ID_VIDEOTECA_PAGE;
+        nb++;
+    }
+
+    VideotecaMenu[1] = nb;
+    VideotecaMenu[2] = 265; // y center: a full page spans the 480-tall screen
+    VideotecaMenu[3] = 0;
+    if (VideotecaMenu[0] >= nb)
+        VideotecaMenu[0] = (U16)(nb - 1);
+}
+
+/* The movie library: every cinematic seen in the story, to watch again. One
+   that has not been seen yet holds its place, greyed out and nameless. */
+static S32 GereVideotecaMenu(S32 startPage) {
+    S32 flag = 0;
+
+    // Saves made before the library existed, or never loaded since, count too.
+    AcfNoteSeenFromSaves();
+    s_vtTotal = Videoteca_Total();
+    s_vtSeen = Videoteca_SeenCount();
+    s_vtPage = startPage;
+    VideotecaMenu[0] = 0;
+
+    VideotecaBackdrop();
+
+    while (!flag) {
+        BuildVideotecaMenu();
+        const S32 select = DoGameMenu(VideotecaMenu);
+        const S32 pages = VideotecaPages();
+
+        if (select == 26 || select == 1000) {
+            flag = 1;
+        } else if (select == MENU_ID_VIDEOTECA_PREV) {
+            s_vtPage = (s_vtPage + pages - 1) % pages;
+            VideotecaBackdrop();
+        } else if (select == MENU_ID_VIDEOTECA_NEXT || select == MENU_ID_VIDEOTECA_PAGE) {
+            s_vtPage = (s_vtPage + 1) % pages;
+            VideotecaBackdrop();
+        } else {
+            const S32 index = VideotecaRowIndex(select);
+            if (index >= 0 && index < s_vtSeen) {
+                FadeToBlack(PtrPalNormal);
+                Videoteca_Play(Videoteca_SeenName(index));
+#ifdef CDROM
+                PlayMusic(CD_TRACK_MENU, TRUE);
+#endif
+                // PlayAcf leaves the screen black: draw the page, then fade it in.
+                VideotecaBackdrop();
+                FadeMenu = TRUE;
+                InitWaitNoInput(I_JOY | I_FIRE | I_MENUS | I_ACTION);
+            } else if (index >= 0) {
+                PlayErrorSample();
+            }
+        }
+    }
+
+    KeepMenuChoices();
+
+    s_vtTotal = 0;
+    s_vtSeen = 0;
+
+    CopyScreen(Screen, Log);
+    BoxStaticAdd(0, 0, (S32)ModeDesiredX - 1, (S32)ModeDesiredY - 1);
+
+    WaitNoInput();
+
+    return FALSE;
+}
+
+// Harness one-shot capture of a movie library page over the boot menu's
+// backdrop, the same way as Menu_MainCapture.
+void Videoteca_MainCapture(const char *path, S32 page) {
+    char tmpFilePathScreen[ADELINE_MAX_PATH];
+
+    HQ_StopSample();
+    InitPlasmaMenu();
+    FlagShadeMenu = FALSE;
+
+    GetResPath(tmpFilePathScreen, ADELINE_MAX_PATH, SCREEN_HQR_NAME);
+    Image_LoadStretched(tmpFilePathScreen, Screen, PCR_MENU);
+    CopyScreen(Screen, Log);
+    BoxStaticFullflip();
+    PtrPal = PtrPalNormal;
+    PaletteSync(PtrPalNormal);
+    InitDial(0);
+
+    Menu_RequestCapture(path);
+    GereVideotecaMenu(page);
+    Menu_RequestCapture(NULL);
+}
 
 S32 OptionsMenu(S32 flagflip) {
     S32 select;
@@ -3757,7 +4006,11 @@ S32 OptionsMenu(S32 flagflip) {
     PlayMusic(CD_TRACK_MENU, TRUE);
 #endif
 
-    GameOptionMenu[1] = 6;
+    /* The movie library plays cinematics, so it is offered only from the main
+       menu, where no scene is running underneath. */
+    GameOptionMenu[1] = flagflip ? 7 : 6;
+    if (GameOptionMenu[0] >= GameOptionMenu[1])
+        GameOptionMenu[0] = 0;
 
     MenuMouseAcquire();
 
@@ -3791,11 +4044,19 @@ S32 OptionsMenu(S32 flagflip) {
         case MENU_ID_DISPLAY:
             GereDisplayMenu();
             break;
+
+        case MENU_ID_VIDEOTECA:
+            GereVideotecaMenu(0);
+            break;
         }
     }
 
     HQ_StopSample();
     SetDetailLevel(); // prise en compte des différentes options
+
+    /* Every Options page has been left by now; keep what was chosen on them
+       for the same reason GereLanguageMenu does. */
+    WriteConfigFile();
 
     if (flagflip) {
         // Backdrop only. The caller's menu loop draws over it and flips on its
@@ -4080,6 +4341,16 @@ void BuildGameMainMenu(S32 firstloop) {
         ptrreal += 2 ;  // sauver partie
 #endif
 */
+    ptrreal += 2; // videoteca
+
+    // Only while the list keeps the six rows the screen has room for; with a
+    // game to save it is under Options instead.
+    if (nb + 3 <= 6) {
+        *ptrmain++ = *ptrreal;
+        *ptrmain++ = *(ptrreal + 1);
+        nb++;
+    }
+
     ptrreal += 2; // Options
 
     *ptrmain++ = *ptrreal++;
@@ -4093,8 +4364,10 @@ void BuildGameMainMenu(S32 firstloop) {
 
     if (firstloop == 2)
         GameMainMenu[0] = (S16)(nb - 1); // selected
-    GameMainMenu[1] = nb;                // nb entries
-    GameMainMenu[2] = ycenter;           // y center
+    if (GameMainMenu[0] >= nb)
+        GameMainMenu[0] = (U16)(nb - 1);
+    GameMainMenu[1] = nb;      // nb entries
+    GameMainMenu[2] = ycenter; // y center
 
     strcpy(PlayerName, memoplayername);
     strcpy(GamePathname, memogamepathname);
@@ -4513,6 +4786,10 @@ S32 MainGameMenu(S32 load, S32 resumeInGame) {
             CopyScreen(Screen, Log);
             BoxStaticAdd(0, 0, (S32)ModeDesiredX - 1, (S32)ModeDesiredY - 1);
             OptionsMenu(TRUE);
+            break;
+
+        case MENU_ID_VIDEOTECA:
+            GereVideotecaMenu(0);
             break;
 
         case 75: // quitter

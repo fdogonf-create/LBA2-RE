@@ -5,6 +5,7 @@
 #include <SYSTEM/INPUT.H>         // DefineInputKeys
 #include <SYSTEM/KEYBOARD.H>      // CheckKey
 #include <SYSTEM/KEYBOARD_KEYS.H> // K_*
+#include "INPUT.H"                // I_RETURN, I_MENUS (the Switch menus)
 
 // The 1997 source carried two default layouts, DefKeysDefault for DOS and this
 // one for Windows 95. Only the second was ported. A binding set is where the
@@ -73,19 +74,36 @@ const T_DEF_KEY GamepadKeysDefault[MAX_INPUT_SLOTS] = {
     {K_GAMEPAD_LSTICK_UP, 0},   // 0  I_UP
     {K_GAMEPAD_LSTICK_DOWN, 0}, // 1  I_DOWN
 #elif defined(LBA2_MODERN_PAD_DEFAULT) && LBA2_MODERN_PAD_DEFAULT
-    {K_GAMEPAD_RTRIGGER, 0}, // 0  I_UP
-    {0, 0},                  // 1  I_DOWN (ZL steps the behaviour; the stick turns him round)
+    /* The Switch layout. SDL names the face buttons by position (Xbox style),
+       so the Nintendo labels are swapped against the names here: K_GAMEPAD_B
+       (east) is the Switch's A, K_GAMEPAD_A (south) its B, K_GAMEPAD_Y (north)
+       its X and K_GAMEPAD_X (west) its Y. The left stick walks him (analog
+       movement supplies I_UP), so neither trigger is forward or back. */
+    {0, 0}, // 0  I_UP (the stick walks him; ZR casts the protection spell)
+    {0, 0}, // 1  I_DOWN (ZL steps the behaviour; the stick turns him round)
 #else
     {K_GAMEPAD_RTRIGGER, 0}, // 0  I_UP
     {K_GAMEPAD_LTRIGGER, 0}, // 1  I_DOWN
 #endif
     {K_GAMEPAD_LSTICK_LEFT, 0},  // 2  I_LEFT
     {K_GAMEPAD_LSTICK_RIGHT, 0}, // 3  I_RIGHT
-    {K_GAMEPAD_RSHOULDER, 0},    // 4  I_THROW
-    {K_GAMEPAD_LSHOULDER, 0},    // 5  I_COMPORTEMENT
-    {K_GAMEPAD_Y, 0},            // 6  I_INVENTORY
-    {K_GAMEPAD_X, 0},            // 7  I_ACTION_M
-    {K_GAMEPAD_A, 0},            // 8  I_ACTION_ALWAYS
+#if defined(LBA2_MODERN_PAD_DEFAULT) && LBA2_MODERN_PAD_DEFAULT && !defined(LBA2_GAMEPAD_STICK_LAYOUT)
+    {K_GAMEPAD_A, 0},          // 4  I_THROW (Switch B; R opens the quick item menu)
+    {K_GAMEPAD_LSHOULDER, 0},  // 5  I_COMPORTEMENT
+    {K_GAMEPAD_BACK, 0},       // 6  I_INVENTORY (Switch -)
+    {K_GAMEPAD_Y, 0},          // 7  I_ACTION_M (Switch X)
+    {K_GAMEPAD_B, 0},          // 8  I_ACTION_ALWAYS (Switch A)
+    {K_GAMEPAD_RSTICK_BTN, 0}, // 9  I_RETURN (right stick click; in menus the Switch A confirms)
+    {K_GAMEPAD_START, 0},      // 10 I_MENUS
+    {K_GAMEPAD_X, 0},          // 11 I_HOLOMAP (Switch Y)
+    {0, 0},                    // 12 I_PAUSE (unbound; + opens the in-game menu)
+    {K_GAMEPAD_LSTICK_BTN, 0}, // 13 I_ESQUIVE
+#else
+    {K_GAMEPAD_RSHOULDER, 0}, // 4  I_THROW
+    {K_GAMEPAD_LSHOULDER, 0}, // 5  I_COMPORTEMENT
+    {K_GAMEPAD_Y, 0},         // 6  I_INVENTORY
+    {K_GAMEPAD_X, 0},         // 7  I_ACTION_M
+    {K_GAMEPAD_A, 0},         // 8  I_ACTION_ALWAYS
 #ifdef LBA2_GAMEPAD_STICK_LAYOUT
     {0, 0}, // 9  I_RETURN (front-screen tap)
 #else
@@ -98,6 +116,7 @@ const T_DEF_KEY GamepadKeysDefault[MAX_INPUT_SLOTS] = {
     {K_GAMEPAD_B, 0}, // 13 I_ESQUIVE
 #else
     {K_GAMEPAD_LSTICK_BTN, K_GAMEPAD_RSTICK_BTN}, // 13 I_ESQUIVE
+#endif
 #endif
     {0, 0},                                          // 14 I_NORMAL
     {0, 0},                                          // 15 I_SPORTIF
@@ -119,8 +138,8 @@ const T_DEF_KEY GamepadKeysDefault[MAX_INPUT_SLOTS] = {
     {0, 0},                                          // 31
     {K_GAMEPAD_DPAD_RIGHT, 0},                       // 32 I_PINGOUIN
 #if defined(LBA2_MODERN_PAD_DEFAULT) && LBA2_MODERN_PAD_DEFAULT
-    {0, 0}, // 33 I_JETPACK (D-pad down zooms the camera out)
-    {0, 0}, // 34 I_PROTECTION (D-pad up zooms the camera in)
+    {0, 0},                  // 33 I_JETPACK (D-pad down zooms the camera out; the behaviour menu has it)
+    {K_GAMEPAD_RTRIGGER, 0}, // 34 I_PROTECTION (ZR; D-pad up zooms the camera in)
 #else
     {K_GAMEPAD_DPAD_DOWN, 0}, // 33 I_JETPACK
     {K_GAMEPAD_DPAD_UP, 0},   // 34 I_PROTECTION
@@ -137,6 +156,27 @@ static S32 s_modalCircle = 0;
 #endif
 static S32 s_gameplay = 0;
 static S32 s_circleSuppressed = 0;
+
+#if defined(LBA2_MODERN_PAD_DEFAULT) && LBA2_MODERN_PAD_DEFAULT && !defined(LBA2_GAMEPAD_STICK_LAYOUT)
+/* The Switch layout's menus: outside gameplay the Switch A (K_GAMEPAD_B)
+   confirms, as Return does, and the Switch B (K_GAMEPAD_A) goes back, as
+   Escape does, whatever either is bound to in play. A button still held across
+   the change does nothing until it is released, so the press that opened a
+   menu or a dialogue does not also answer it. */
+#define BINDINGS_SWITCH_MENUS 1
+static S32 s_switchGameplay = 0;
+static U32 s_switchHeld = 0; /* bit 0: Switch A, bit 1: Switch B */
+
+static U32 SwitchMenuMask(U32 key, U32 mask) {
+    if (s_switchGameplay)
+        return mask;
+    if (key == K_GAMEPAD_B)
+        return (s_switchHeld & 1u) ? 0 : I_RETURN;
+    if (key == K_GAMEPAD_A)
+        return (s_switchHeld & 2u) ? 0 : I_MENUS;
+    return mask;
+}
+#endif
 
 U32 Bindings_GetContext(void) {
     return (s_modalCircle ? BINDINGS_CONTEXT_MODAL_CIRCLE : 0) |
@@ -168,6 +208,10 @@ void InitInput(void) {
         CombinedInputMasks[n++] = mask;
         CombinedInputKeys[n] = GamepadKeys[i].Key2;
         CombinedInputMasks[n++] = mask;
+#ifdef BINDINGS_SWITCH_MENUS
+        CombinedInputMasks[n - 2] = SwitchMenuMask(CombinedInputKeys[n - 2], mask);
+        CombinedInputMasks[n - 1] = SwitchMenuMask(CombinedInputKeys[n - 1], mask);
+#endif
         /* An action remap must not turn a held modal press into a new action. */
         if (s_modalCircle && i == 13) {
             for (S32 key = n - 2; key < n; ++key)
@@ -186,6 +230,26 @@ void InitInput(void) {
 }
 
 void Bindings_SetGameplay(S32 gameplay) {
+#ifdef BINDINGS_SWITCH_MENUS
+    {
+        U32 held = s_switchHeld;
+        gameplay = gameplay != 0;
+        /* Released buttons rearm; one held through a change of context waits. */
+        if (!CheckKey(K_GAMEPAD_B))
+            held &= ~1u;
+        else if (s_switchGameplay != gameplay)
+            held |= 1u;
+        if (!CheckKey(K_GAMEPAD_A))
+            held &= ~2u;
+        else if (s_switchGameplay != gameplay)
+            held |= 2u;
+        if (s_switchGameplay != gameplay || s_switchHeld != held) {
+            s_switchGameplay = gameplay;
+            s_switchHeld = held;
+            InitInput();
+        }
+    }
+#endif
     if (!s_modalCircle)
         return;
     gameplay = gameplay != 0;

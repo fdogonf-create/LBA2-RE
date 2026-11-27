@@ -19,6 +19,13 @@ bool SDL2_TranslateEvent(const SDL_Event *source, PlatformEvent *event) {
             break;
         case SDL_WINDOWEVENT_FOCUS_LOST:
             event->type = PLATFORM_EVENT_WINDOW_FOCUS_LOST;
+#ifdef __SWITCH__
+            /* HOME takes the focus, and the system may then close the app from
+               its menu with no exit of the game's: keep the settings now, as the
+               UWP backend does when it is suspended. This runs on the game's
+               thread, inside its event pump. */
+            Platform_NotifySuspend();
+#endif
             break;
         case SDL_WINDOWEVENT_ENTER:
             event->type = PLATFORM_EVENT_WINDOW_MOUSE_ENTER;

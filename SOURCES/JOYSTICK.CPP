@@ -1,6 +1,7 @@
 #include "C_EXTERN.H"
 
 #include "FOLLOWCAM.H" /* FollowCamera: the right stick only drives the Auto camera */
+#include "MENU_INPUT.H"
 #include <SYSTEM/KEYBOARD.H>
 #include <SYSTEM/KEYBOARD_KEYS.H>
 #include <SYSTEM/LOG.H>
@@ -350,8 +351,9 @@ void UpdateJoystick(void) {
     // Right stick stays 8-way digital for bindings, EXCEPT while the analog
     // camera owns it (Auto camera in an exterior scene): there EXTFUNC reads the
     // raw axes, so emitting RSTICK scancodes too would double-drive elevation
-    // and the classic camera turn.
-    if (GamepadCameraAnalog && FollowCamera && CubeMode == CUBE_EXTERIEUR) {
+    // and the classic camera turn. A menu that has asked for the right stick
+    // (behaviour, inventory) gets it back for as long as it is open.
+    if (GamepadCameraAnalog && FollowCamera && CubeMode == CUBE_EXTERIEUR && !MenuInput_RightStickOn()) {
         s_prevRightDir = DIR_NEUTRAL;
     } else {
         ApplyStickDirection(rx, ry, K_GAMEPAD_RSTICK_LEFT, K_GAMEPAD_RSTICK_RIGHT,

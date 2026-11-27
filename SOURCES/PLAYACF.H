@@ -31,6 +31,7 @@ extern Func_CopyFrameDoubleXY *CopyFrameDoubleXY;
 // PLAYACF.CPP
 
 //▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+extern char *ListAcf; /* the cinematics' names, as RESS.HQR lists them */
 extern void InitAcf(void);
 extern void ResetAcfList(void);
 //▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
@@ -53,6 +54,19 @@ extern S32 PlayAcf(const char *name);
    disarm. No-op in null-video-backend builds. Used by the console
    `ui video <name> <path>` verb. */
 extern void Video_RequestCapture(const char *path);
+
+/* Whether video/hd/ holds a high-definition replacement for this cinematic.
+   Always false in a build without movie playback. */
+extern S32 Video_HasHdReplacement(const char *name);
+
+/* The save's record of which cinematics it has played: one bit per ListAcf
+   number, in ACF_FLAG_WORDS game variables from FLAG_ACF. */
+#define ACF_FLAG_WORDS 3
+extern S32 AcfSeenInSave(S32 n);
+extern void AcfSaveFlags(S16 *saved);
+extern void AcfRestoreFlags(const S16 *saved);
+/* Records as seen every cinematic any save in the save folder has played. */
+extern void AcfNoteSeenFromSaves(void);
 
 #ifdef USE_MVIDEO_SMACKER
 void VideoLogEnable(int enable);

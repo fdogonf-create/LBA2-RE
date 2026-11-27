@@ -96,6 +96,8 @@ extern void AffObjName(S32 num);
 extern void CheckProtoPack(void);
 /*--------------------------------------------------------------------------*/
 extern void MenuInventory(U32 tempo);
+/* The Switch build's quick item menu on R; sets InventoryAction as MenuInventory does. */
+extern void MenuQuickInventory(void);
 /*--------------------------------------------------------------------------*/
 /* Harness hook: arm a one-shot screenshot inside the next MenuInventory call.
    At a settled frame inside the wheel's modal loop, SavePNG is called with the

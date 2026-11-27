@@ -209,6 +209,7 @@ PlatformInterface Interface() {
     api.window.set_relative_mouse = SDL2_SetRelativeMouse;
     api.window.set_mouse_grab = SDL2_SetMouseGrab;
     api.window.present = SDL2_Present;
+    api.window.present_video = SDL2_PresentVideo;
     api.input.keyboard_state = Keyboard;
     api.input.keycode = Keycode;
     api.input.scancode_name = ScancodeName;

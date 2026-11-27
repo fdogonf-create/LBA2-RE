@@ -22,8 +22,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <dirent.h>
+#include <SYSTEM/FILES.H> /* WriteFileInBackground */
 #include <SYSTEM/LOADSAVE.H>
 #include <SYSTEM/LOG.H>
+#include <SYSTEM/STRING.H>
 #include <SYSTEM/LZ.H>
 #include "SAVEGAME_LOAD_BOUNDS.H"
 
@@ -31,6 +34,8 @@
 
 #include "SAVEGAME_WIRE.H" // wire structs + FromWire32 / ToWire32 converters
 #include "AMBIANCE.H"
+#include "ACTIONHINT.H" /* the "saving" indicator */
+#include <PLATFORM/PLATFORM.H>
 
 extern char PlayerName[MAX_SIZE_PLAYER_NAME + 1];
 
@@ -382,6 +387,9 @@ S32 Save_AutoDisabled(void) {
     return AutoSavesDisabled;
 }
 
+/* Set by AutoSaveGame for the SaveGame it makes: write it in the background. */
+static S32 s_saveInBackground = FALSE;
+
 // Version Jeu uniquement
 void AutoSaveGame() {
 #ifndef DEMO
@@ -421,7 +429,9 @@ void AutoSaveGame() {
 
     NumVersion = NUM_VERSION; // Sauvegarde non compactee
 
+    s_saveInBackground = TRUE;
     SaveGame(FALSE);
+    s_saveInBackground = FALSE;
 
     NumVersion = memonumversion;
     strcpy(PlayerName, memoplayername);
@@ -466,6 +476,7 @@ void CurrentSaveGame() {
 
     NumVersion = NUM_VERSION; // Sauvegarde non compactee
 
+    /* Written at once: the menu that follows lists the saves folder. */
     SaveGame(FALSE);
 
     NumVersion = memonumversion;
@@ -607,7 +618,12 @@ if (NumVersion & SAVE_COMPRESS) // Version compactee
 }
 
 #ifndef EDITLBA2
-written = Save(GamePathname, BufSpeak + 50000L, PtrSave - (BufSpeak + 50000L));
+/* The autosave on a scene change goes to the card behind the game's back
+   (WriteFileInBackground), so walking into a new scene does not stall on it. */
+if (s_saveInBackground)
+    written = WriteFileInBackground(GamePathname, BufSpeak + 50000L, (U32)(PtrSave - (BufSpeak + 50000L)));
+else
+    written = Save(GamePathname, BufSpeak + 50000L, PtrSave - (BufSpeak + 50000L));
 #else
     written = Save(GamePathname, (U8 *)Screen, PtrSave - (U8 *)Screen);
 #endif
@@ -617,14 +633,110 @@ written = Save(GamePathname, BufSpeak + 50000L, PtrSave - (BufSpeak + 50000L));
 // debug` / `loglevel debug`. Covers every save path: AutoSaveGame
 // (autosave.lba), CurrentSaveGame (current.lba), and the menu's named saves --
 // GamePathname distinguishes which, NumCube which scene.
-if (written)
+if (written) {
     Log_Debug("save: wrote \"%s\" (cube %d)", GamePathname, (int)NumCube);
+    ActionHint_NoteSaving((U32)g_platform.system.ticks_ms(), Language == 3);
+}
 return written;
 }
 
 // Version 4 : LBA II only !! (LoadSize + read limit via SaveLoadFileToScreen)
 
 #ifndef EDITLBA2
+/*──────────────────────────────────────────────────────────────────────────*/
+/* One save's FLAG_ACF words, read into a buffer of its own so nothing of the
+   game in progress (Screen, PtrSave, ListVarGame, PlayerName) is touched. */
+static S32 ReadCinematicFlagsFromFile(const char *path, S16 *out, S32 words) {
+    FILE *f = fopen(path, "rb");
+    if (!f)
+        return FALSE;
+    fseek(f, 0, SEEK_END);
+    const long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    /* Generous for any save; anything larger is not one. */
+    if (size < 8 || size > 4L * 1024 * 1024) {
+        fclose(f);
+        return FALSE;
+    }
+    U8 *file = (U8 *)malloc((size_t)size + RECOVER_AREA);
+    if (!file) {
+        fclose(f);
+        return FALSE;
+    }
+    const size_t got = fread(file, 1, (size_t)size, f);
+    fclose(f);
+    memset(file + got, 0, RECOVER_AREA);
+
+    S32 ok = FALSE;
+    U8 *data = NULL;
+    const U8 *p = file;
+    const U8 *end = file + got;
+    const U8 numversion = *p;
+    p += 1 + 4; // num version, num cube
+    while (p < end && *p)
+        p++; // player name
+    p++;
+    const size_t varsAt = 160 * 120 + (size_t)FLAG_ACF * sizeof(S16);
+    const size_t need = varsAt + (size_t)words * sizeof(S16);
+    if (p < end) {
+        const U8 *vars = NULL;
+        if (numversion & SAVE_COMPRESS) {
+            if (p + 4 <= end) {
+                const S32 sizefile = ReadLE_S32(p);
+                p += 4;
+                if (sizefile >= (S32)need && sizefile <= 8 * 1024 * 1024) {
+                    data = (U8 *)malloc((size_t)sizefile + RECOVER_AREA);
+                    if (data) {
+                        ExpandLZ(data, (void *)p, (U32)sizefile, 2);
+                        vars = data + varsAt;
+                    }
+                }
+            }
+        } else if ((size_t)(end - p) >= need) {
+            vars = p + varsAt;
+        }
+        if (vars) {
+            for (S32 i = 0; i < words; i++)
+                out[i] = ReadLE_S16(vars + i * sizeof(S16));
+            ok = TRUE;
+        }
+    }
+    free(data);
+    free(file);
+    return ok;
+}
+
+S32 SaveCollectCinematicFlags(S16 *out, S32 words) {
+    char pathname[ADELINE_MAX_PATH];
+    S32 nb = 0;
+
+    for (S32 i = 0; i < words; i++)
+        out[i] = 0;
+
+    WaitBackgroundWrites(); /* the folder listed with no save half written */
+    GetSavePath(pathname, ADELINE_MAX_PATH, NULL);
+    DIR *dir = opendir(pathname);
+    if (!dir)
+        return 0;
+    struct dirent *file;
+    while ((file = readdir(dir)) != NULL) {
+        const size_t len = strlen(file->d_name);
+        if (len < 4 || ade_strcasecmp(file->d_name + len - 4, ".lba"))
+            continue;
+        S16 flags[8];
+        if (words > 8)
+            break;
+        GetSavePath(pathname, ADELINE_MAX_PATH, file->d_name);
+        if (ReadCinematicFlagsFromFile(pathname, flags, words)) {
+            for (S32 i = 0; i < words; i++)
+                out[i] |= flags[i];
+            nb++;
+        }
+    }
+    closedir(dir);
+    return nb;
+}
+
 /*──────────────────────────────────────────────────────────────────────────*/
 void LoadGameNumCube() {
     U8 numversion;

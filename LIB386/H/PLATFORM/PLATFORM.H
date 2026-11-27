@@ -85,12 +85,50 @@ typedef void (*PlatformOverlayFn)(uint32_t *pixels, uint32_t pitch,
 /* Indexed pixels and the 256 RGB triples are borrowed for this call only.
    The optional overlay operates on 0xAARRGGBB pixels, with a byte pitch.
    Backends without an overlay may present indexed/RGB565 pixels directly. */
+/* A full-colour picture shown in place of part of the indexed frame: inside
+   the rectangle (x, y, w, h, in frame pixels), every frame pixel whose index
+   still equals `key` there is the picture (its src_* part, or all of it
+   when src_w or src_h is 0), scaled to the rectangle at the output's own
+   resolution; any other pixel (something drawn over it) stays
+   the frame's. The picture is dimmed by how far the frame's palette has faded
+   from `key_palette`. All of it is borrowed until it is changed or cleared. A
+   backend that cannot show it presents the frame alone. */
+typedef struct PlatformBackdrop {
+    const uint32_t *argb; /* 0xAARRGGBB, `width` x `height`, rows packed */
+    uint32_t width, height;
+    int32_t x, y, w, h;
+    const uint8_t *key; /* w x h indices, rows packed */
+    const uint8_t *key_palette;
+    uint32_t serial; /* changes whenever argb's contents do */
+    int32_t src_x, src_y, src_w, src_h;
+    /* Nonzero: the picture also has more of itself left and right of the
+       src_* part (a widescreen map), which a backend may show in the bars
+       beside the frame, at the same scale, as far as the picture reaches. */
+    int32_t spill;
+} PlatformBackdrop;
+
 typedef struct PlatformFrame {
     const uint8_t *pixels;
     uint32_t width, height, pitch;
     const uint8_t *palette_rgb;
     PlatformOverlayFn overlay;
+    const PlatformBackdrop *backdrop; /* optional, NULL for none */
 } PlatformFrame;
+
+/* One frame of a full-colour movie: planar YUV 4:2:0 (I420, BT.601 limited
+   range, as MPEG-1 decodes), converted on the GPU. dst_* is a rectangle of the
+   framebuffer in framebuffer pixels; fill_display instead covers the whole
+   display, cropping the frame to its aspect. brightness scales the image
+   (255 = as decoded) for fades. Everything outside the image is black. The
+   planes are borrowed for this call only. */
+typedef struct PlatformVideoFrame {
+    const uint8_t *y, *u, *v;
+    uint32_t y_pitch, uv_pitch;
+    uint32_t width, height;
+    int32_t dst_x, dst_y, dst_w, dst_h;
+    bool fill_display;
+    uint8_t brightness;
+} PlatformVideoFrame;
 
 typedef struct PlatformGamepad PlatformGamepad;
 typedef struct PlatformFolderDialog PlatformFolderDialog;
@@ -122,7 +160,10 @@ typedef void (*PlatformLogFn)(void *userdata, PlatformLogLevel level, const char
 typedef enum PlatformPresentFilter {
     PLATFORM_FILTER_NEAREST = 0,
     PLATFORM_FILTER_LINEAR = 1,
-    PLATFORM_FILTER_PIXELART = 2 /* crisp texel interiors, interpolated seams */
+    PLATFORM_FILTER_PIXELART = 2, /* crisp texel interiors, interpolated seams */
+    PLATFORM_FILTER_SMOOTH = 3,   /* pixel art, with the stairs on edges smoothed (FXAA) */
+    PLATFORM_FILTER_CRT = 4,      /* an old TV: scanlines, stripe mask, vignette */
+    PLATFORM_FILTER_SMOOTH_CRT = 5
 } PlatformPresentFilter;
 
 typedef struct PlatformCapabilities {
@@ -179,6 +220,9 @@ typedef struct PlatformWindow {
        is unfocused and puts it back on focus, as it does relative mode. */
     void (*set_mouse_grab)(bool enabled);
     bool (*present)(const PlatformFrame *frame);
+    /* False on a backend that can only show indexed frames; the caller then
+       shows its indexed fallback. */
+    bool (*present_video)(const PlatformVideoFrame *frame);
 } PlatformWindow;
 
 typedef struct PlatformInput {

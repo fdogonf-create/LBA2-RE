@@ -4,7 +4,8 @@
 #include "DIRECTORIES.H"
 #include "INPUT.H"
 #include "MENU_INPUT.H"
-#include "RETAILFIX.H" /* RetailFix_On (DoFoundObj) */
+#include "ACTIONHINT.H" /* the quick item menu's button icons */
+#include "RETAILFIX.H"  /* RetailFix_On (DoFoundObj) */
 #include "IMAGE_LOAD.H"
 #include "UI_LAYOUT.H" /* UI_VCENTER_OFS */
 
@@ -1054,6 +1055,8 @@ void MenuInventory(U32 tempo) {
     S32 flagproto = FALSE;
     U8 memobulle;
 
+    MenuInput_UseRightStick(TRUE);
+
     // au cas ou l'on soit appelé pendant un eclair
     Palette(PtrPal);
 
@@ -1405,6 +1408,310 @@ void MenuInventory(U32 tempo) {
     InitWaitNoKey();
     /* A held D-pad navigation key must not cast its gameplay spell on return. */
     WaitNoMenuInput();
+    MenuInput_UseRightStick(FALSE);
+}
+
+/*──────────────────────────────────────────────────────────────────────────*/
+/* Quick item menu (a Switch-build addition, opened by R): the objects and
+ * spells Twinsen can use now, in a row across the dimmed scene, drawn with the
+ * inventory's own boxes, frames and turning 3D objects. The chosen one sits in
+ * the middle, larger, in a bright frame with an arrow either side; its name is
+ * written large underneath, and under that the buttons: the D-pad to choose, A
+ * to use, B to go back. Left and right (stick or D-pad) step one object per
+ * press and repeat when held. A uses the object as the inventory would, B or R
+ * closes. It sets InventoryAction exactly as MenuInventory does, so the
+ * caller's handling of the chosen object is shared. */
+#define QUICK_INV_VISIBLE 5        /* boxes on screen at once, the chosen one in the middle */
+#define QUICK_INV_GAP 18           /* between two boxes */
+#define QUICK_INV_GROW 14          /* how much bigger the chosen box is, each side */
+#define QUICK_INV_Y_RAW 250        /* middle of the row on the authored 480 canvas */
+#define QUICK_INV_REPEAT_FIRST 380 /* ms held before a direction repeats */
+#define QUICK_INV_REPEAT_NEXT 150  /* ms between repeats after that */
+
+static S32 QuickInvLast = -1; /* the object last chosen here, to start on it again */
+
+static void DrawQuickBox(S32 x0, S32 y0, S32 x1, S32 y1, S32 numinv, S32 chosen) {
+    S16 *ptrobj;
+    S32 beta;
+    U32 flags = ALL_ANGLES | BACKUP_ANGLES;
+
+    SetClip(x0, y0, x1, y1);
+    DrawCadreBox(x0, y0, x1, y1, chosen ? COUL_SELECT_MENU : 0);
+
+    ptrobj = (S16 *)GivePtrObjFix(TabInv[numinv].TabObj3D[TabInv[numinv].IdObj3D]);
+    beta = TabInv[numinv].BetaObj;
+    if (chosen)
+        beta += TimerRefHR - TimerRot;
+    DrawObjInventory((x0 + x1) >> 1, (y0 + y1) >> 1, ptrobj, beta, chosen ? 260 : 200, 15000);
+
+    if (TabInv[numinv].FlagInv & FLAG_INV_FEWER) { // how many: fuel, darts, keys...
+        char string[10];
+#ifdef LBA_EDITOR
+        strcpy(string, Itoa(ListVarGame[numinv].Value));
+#else
+        strcpy(string, Itoa(ListVarGame[numinv]));
+#endif
+        ColorFont(BLACK);
+        Font(x1 - SizeFont(string) - 4, y1 - 29, string);
+        ColorFont(LBAWHITE);
+        Font(x1 - SizeFont(string) - 6, y1 - 31, string);
+    }
+    if (TabInv[numinv].FlagInv & FLAG_INV_VALUE)
+        AffValueBar(x0, y0, x1, y1, TabInv[numinv].PtMagie);
+
+    if (numinv == Weapon)
+        flags |= CADRE_RED;
+    DrawCadre(x0, y0, x1, y1, flags);
+    UnsetClip();
+
+    if (chosen) { // the bright frame round the chosen one
+        S32 n;
+        for (n = 2; n <= 3; n++) {
+            Line(x0 - n + 4, y0 - n, x1 + n - 4, y0 - n, LBAWHITE);
+            Line(x0 - n + 4, y1 + n, x1 + n - 4, y1 + n, LBAWHITE);
+            Line(x0 - n, y0 - n + 4, x0 - n, y1 + n - 4, LBAWHITE);
+            Line(x1 + n, y0 - n + 4, x1 + n, y1 + n - 4, LBAWHITE);
+        }
+    }
+}
+
+/* A small solid arrow pointing left (dir -1) or right (dir 1), its point at
+ * (x, y). */
+static void DrawQuickArrow(S32 x, S32 y, S32 dir) {
+    S32 n;
+    for (n = 0; n < 10; n++)
+        Line(x - dir * n, y - n, x - dir * n, y + n, LBAWHITE);
+}
+
+/* Text at its centre, with the inventory's drop shadow. */
+static void QuickText(S32 cx, S32 y, const char *text, S32 color) {
+    S32 x = cx - SizeFont((char *)text) / 2;
+    ColorFont(BLACK);
+    Font(x + 2, y + 3, (char *)text);
+    ColorFont(color);
+    Font(x, y, (char *)text);
+}
+
+void MenuQuickInventory(void) {
+    S32 items[MAX_BOX_INVENTORY];
+    S32 count = 0;
+    S32 sel = 0;
+    S32 n;
+    S32 cx, cy, bx, by, areaY0, areaY1, nameY, promptY;
+    S32 memoalphalight, memobetalight;
+    S32 flagproto = FALSE;
+    S32 rHeld = TRUE; /* R opened it: it closes on a new press only */
+    S32 done = FALSE;
+    U32 lastDir = 0;
+    U32 repeatAt = 0;
+    const char *useText = (Language == 3) ? "Usar" : "Use";
+    const char *backText = (Language == 3) ? "Volver" : "Back";
+    const char *chooseText = (Language == 3) ? "Elegir" : "Choose";
+
+    InventoryAction = -1;
+    InitTabIndir();
+
+    for (n = 0; n < MAX_BOX_INVENTORY; n++) {
+        S32 numinv = TabIndir[n];
+#ifdef LBA_EDITOR
+        if (ListVarGame[numinv].Value <= 0)
+#else
+        if (ListVarGame[numinv] <= 0)
+#endif
+            continue;
+        if (TabInv[numinv].FlagInv & FLAG_INV_UNUSABLE)
+            continue;
+        if (numinv == QuickInvLast)
+            sel = count;
+        items[count++] = numinv;
+    }
+    if (count == 0) {
+        PlayErrorSample();
+        RestoreTimer();
+        return;
+    }
+
+    MenuInput_UseRightStick(TRUE);
+    Palette(PtrPal);
+
+    if (Comportement == C_PROTOPACK OR Comportement == C_JETPACK) {
+#ifdef LBA_EDITOR
+        HQ_StopOneSample(NUM_SAMPLE(COMMON_NUM_DEF, SAMPLE_PROTOPACK));
+#else
+        HQ_StopOneSample(SAMPLE_PROTOPACK);
+#endif
+        ListObjet[NUM_PERSO].SampleAlways = 0;
+#ifdef LBA_EDITOR
+        if (!strcasecmp(ListObjet[NUM_PERSO].StringAnim, GEN_ANIM_MARCHE))
+#else
+        if (ListObjet[NUM_PERSO].GenAnim == GEN_ANIM_MARCHE)
+#endif
+        {
+            flagproto = TRUE;
+        }
+    }
+
+    MemoClipWindow();
+    UnsetClipWindow();
+    SetPosCamera(0, 0, 0);
+    SetAngleCamera(0, 0, 0);
+    SaveCamera();
+    memoalphalight = AlphaLight;
+    memobetalight = BetaLight;
+    SetLightVector(OBJ_ALPHA_LIGHT, OBJ_BETA_LIGHT, 0);
+
+    InitDial(2); // object names
+    PtrMap = ObjPtrMap = BufferTexture;
+    RepMask = 0xFFFF;
+    DoTextureAnimation();
+
+    bx = INV_SIZEO_X;
+    by = INV_SIZEO_Y;
+    cx = (S32)ModeDesiredX / 2;
+    cy = QUICK_INV_Y_RAW + INV_TOP_OFFSET;
+    areaY0 = cy - by / 2 - QUICK_INV_GROW - 6;
+    nameY = cy + by / 2 + QUICK_INV_GROW + 22;
+    promptY = nameY + 42;
+    /* The game font is 38 lines tall, plus 3 for the shadow. */
+    areaY1 = promptY + 46;
+
+    /* The whole scene dimmed, kept in BufSpeak to draw each frame over. */
+    CopyScreen(Screen, Log);
+    ShadeBoxBlk(0, 0, (S32)ModeDesiredX - 1, (S32)ModeDesiredY - 1, SHADE_INVENT_LVL);
+    CopyScreen(Log, BufSpeak);
+    CopyScreen(Log, Screen);
+    BoxStaticFullflip();
+
+    TimerRot = TimerRefHR;
+    InitWaitNoInput(I_RETURN | I_MENUS | I_INVENTORY);
+    InitWaitNoKey();
+
+    while (!done) {
+        U32 dir;
+        S32 k, step = 0;
+
+        ManageTime();
+        DoTextureAnimation();
+        MyGetInput();
+
+        if (MyKey == K_ESC OR(Input & (I_MENUS | I_INVENTORY)))
+            break;
+        if (CheckKey(K_GAMEPAD_RSHOULDER)) {
+            if (!rHeld)
+                break;
+        } else {
+            rHeld = FALSE;
+        }
+
+        /* One object per press; held, it waits, then repeats at a pace. */
+        dir = MenuInput_Held() & (MENU_INPUT_LEFT | MENU_INPUT_RIGHT);
+        if (dir == MENU_INPUT_LEFT OR dir == MENU_INPUT_RIGHT) {
+            if (dir != lastDir) {
+                step = 1;
+                repeatAt = TimerRefHR + QUICK_INV_REPEAT_FIRST;
+            } else if (TimerRefHR >= repeatAt) {
+                step = 1;
+                repeatAt = TimerRefHR + QUICK_INV_REPEAT_NEXT;
+            }
+        }
+        lastDir = dir;
+        if (step AND count > 1) {
+            TabInv[items[sel]].BetaObj += TimerRefHR - TimerRot;
+            sel = (dir == MENU_INPUT_LEFT) ? (sel + count - 1) % count : (sel + 1) % count;
+            TimerRot = TimerRefHR;
+        }
+
+        if (Input & I_RETURN) {
+            InventoryAction = items[sel];
+            QuickInvLast = items[sel];
+            done = TRUE;
+        }
+
+        CopyBlock(0, areaY0, (S32)ModeDesiredX - 1, areaY1, BufSpeak, 0, areaY0, Log);
+
+        /* The neighbours first, the chosen one over them. */
+        for (k = QUICK_INV_VISIBLE / 2; k >= 1; k--) {
+            S32 side;
+            for (side = -1; side <= 1; side += 2) {
+                S32 off = side * k;
+                S32 x0;
+                if (count < QUICK_INV_VISIBLE AND(off<-((count - 1) / 2) OR off> count / 2))
+                    continue; /* fewer objects than boxes: no repeats */
+                x0 = cx - bx / 2 + off * (bx + QUICK_INV_GAP) + side * QUICK_INV_GROW;
+                DrawQuickBox(x0, cy - by / 2, x0 + bx, cy + by / 2, items[((sel + off) % count + count) % count],
+                             FALSE);
+            }
+        }
+        DrawQuickBox(cx - bx / 2 - QUICK_INV_GROW, cy - by / 2 - QUICK_INV_GROW, cx + bx / 2 + QUICK_INV_GROW,
+                     cy + by / 2 + QUICK_INV_GROW, items[sel], TRUE);
+
+        if (count > 1) {
+            DrawQuickArrow(cx - bx / 2 - QUICK_INV_GROW - 16, cy, -1);
+            DrawQuickArrow(cx + bx / 2 + QUICK_INV_GROW + 16, cy, 1);
+        }
+
+        {
+            S32 t = TabInv[items[sel]].TabObj3D[TabInv[items[sel]].IdObj3D];
+            GetMultiText(100 + t, String);
+            QuickText(cx, nameY, String, LBAWHITE);
+        }
+
+        /* The buttons, their icons drawn over the presented frame (ACTIONHINT). */
+        {
+            T_ACTION_HINT_PROMPT prompts[3];
+            S32 w0 = SizeFont((char *)chooseText), w1 = SizeFont((char *)useText), w2 = SizeFont((char *)backText);
+            S32 icon = 24, gap = 28;
+            S32 total = (icon + 6 + w0) + gap + (icon + 6 + w1) + gap + (icon + 6 + w2);
+            S32 x = cx - total / 2;
+            S32 p;
+            const S32 icons[3] = {ACTION_HINT_ICON_DPAD_H, ACTION_HINT_ICON_BUTTON_A, ACTION_HINT_ICON_BUTTON_B};
+            const char *texts[3] = {chooseText, useText, backText};
+
+            for (p = 0; p < 3; p++) {
+                prompts[p].icon = icons[p];
+                prompts[p].x = x + icon / 2;
+                prompts[p].y = promptY + 18;
+                prompts[p].size = icon;
+                prompts[p].canvasW = (S32)ModeDesiredX;
+                prompts[p].canvasH = (S32)ModeDesiredY;
+                x += icon + 6;
+                ColorFont(BLACK);
+                Font(x + 2, promptY + 3, (char *)texts[p]);
+                ColorFont(LBAWHITE);
+                Font(x, promptY, (char *)texts[p]);
+                x += SizeFont((char *)texts[p]) + gap;
+            }
+            ActionHint_SetPrompts(prompts, 3);
+        }
+
+        BoxStaticAdd(0, areaY0, (S32)ModeDesiredX - 1, areaY1);
+        BoxUpdate();
+    }
+
+    ActionHint_SetPrompts(NULL, 0);
+    CloseDial();
+
+    AlphaLight = memoalphalight;
+    BetaLight = memobetalight;
+    PtrInit3DView();
+    if (CubeMode == CUBE_INTERIEUR)
+        CameraCenter(0);
+    RestoreClipWindow();
+    RestoreCamera();
+    RestoreTimer();
+    InitDial(START_FILE_ISLAND + Island);
+    CheckProtoPack();
+
+    if (flagproto) {
+        InitAnim(GEN_ANIM_MARCHE, ANIM_REPEAT, NUM_PERSO);
+        ObjectSetFrame(&(ListObjet[NUM_PERSO].Obj), 5);
+        TimerProto = TimerRefHR + TEMPO_PROTO_AUTO; // 1/2 s
+    }
+
+    InitWaitNoInput(I_INVENTORY | I_RETURN | I_MENUS | I_ACTION | I_THROW);
+    InitWaitNoKey();
+    WaitNoMenuInput();
+    MenuInput_UseRightStick(FALSE);
 }
 
 /*══════════════════════════════════════════════════════════════════════════*

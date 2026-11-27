@@ -1,7 +1,9 @@
 #include "C_EXTERN.H"
 #include "DIRECTORIES.H"
+#include "HOLOHD.H"
 #include "IMAGE_LOAD.H"
 #include "INPUT.H"
+#include "JOYSTICK.H"
 #include "MENU_INPUT.H"
 
 #include <FILEIO/SAVEPNG.H>
@@ -402,6 +404,106 @@ void DrawListHoloPlan() {
     }
 }
 //════════════════════════════════════════════════════════════════════════════
+/* Community additions to the island map: any island Twinsen knows can be
+   opened (from the globe, and with L / R from one map to the next; only to
+   look, he stays where he is), and the right stick zooms in on the chosen
+   place. */
+#define HOLO_ZOOM_ONE 1024
+#define HOLO_ZOOM_MAX 3072
+#define HOLO_ZOOM_RATE 2048 /* per second at full tilt: 1x to 3x in a second */
+
+static U8 s_mapClean[IMAGE_AUTHORED_WIDTH * IMAGE_AUTHORED_HEIGHT]; /* the map as loaded */
+static S32 s_mapX0 = 0, s_mapY0 = 0;                                /* where it sits in Log */
+static S32 s_zoom = HOLO_ZOOM_ONE;
+static S32 s_viewX = 0, s_viewY = 0, s_viewW = IMAGE_AUTHORED_WIDTH, s_viewH = IMAGE_AUTHORED_HEIGHT;
+
+/* Whether holomap.hqr has a map for `island` (Sendell's well has none). */
+static S32 HoloPlanHasMap(S32 island) {
+    static S8 s_hasMap[MAX_ISLAND] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+    if (s_hasMap[island] < 0) {
+        char path[ADELINE_MAX_PATH];
+        GetResPath(path, ADELINE_MAX_PATH, HOLO_HQR_NAME);
+        s_hasMap[island] = (S8)(HQF_ResSize(path, HQR_BEGIN_MAP + 2 * island) >=
+                                IMAGE_AUTHORED_WIDTH * IMAGE_AUTHORED_HEIGHT);
+    }
+    return s_hasMap[island];
+}
+
+S32 HoloPlan_IslandKnown(S32 island) {
+    S32 i;
+    if (island < 0 OR island >= MAX_ISLAND)
+        return FALSE;
+    if (island != Island AND !HoloPlanHasMap(island))
+        return FALSE;
+    if (island == Island)
+        return TRUE;
+    for (i = MAX_OBJECTIF; i < MAX_OBJECTIF + MAX_CUBE; i++) {
+        if ((TabArrow[i].FlagHolo & 1) AND TabArrow[i].Island == island)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+static void HoloPlanSetProjection(void) {
+    SetProjection(s_mapX0 + (IMAGE_AUTHORED_WIDTH / 2 - s_viewX) * s_zoom / HOLO_ZOOM_ONE,
+                  s_mapY0 + (IMAGE_AUTHORED_HEIGHT / 2 - s_viewY) * s_zoom / HOLO_ZOOM_ONE, 1024,
+                  700 * s_zoom / HOLO_ZOOM_ONE, 700 * s_zoom / HOLO_ZOOM_ONE);
+}
+
+/* Draw the map at the current zoom, centred as near (fx, fy) (map pixels) as
+   its edges allow, with the name and the brackets, into Log and Screen. */
+static void HoloPlanDrawMap(S32 fx, S32 fy) {
+    const S32 x1 = s_mapX0 + IMAGE_AUTHORED_WIDTH - 1;
+    const S32 y1 = s_mapY0 + IMAGE_AUTHORED_HEIGHT - 1;
+    S32 x, y;
+
+    s_viewW = IMAGE_AUTHORED_WIDTH * HOLO_ZOOM_ONE / s_zoom;
+    s_viewH = IMAGE_AUTHORED_HEIGHT * HOLO_ZOOM_ONE / s_zoom;
+    s_viewX = fx - s_viewW / 2;
+    s_viewY = fy - s_viewH / 2;
+    if (s_viewX > IMAGE_AUTHORED_WIDTH - s_viewW)
+        s_viewX = IMAGE_AUTHORED_WIDTH - s_viewW;
+    if (s_viewY > IMAGE_AUTHORED_HEIGHT - s_viewH)
+        s_viewY = IMAGE_AUTHORED_HEIGHT - s_viewH;
+    if (s_viewX < 0)
+        s_viewX = 0;
+    if (s_viewY < 0)
+        s_viewY = 0;
+
+    for (y = 0; y < IMAGE_AUTHORED_HEIGHT; y++) {
+        const U8 *src = s_mapClean + (size_t)(s_viewY + y * s_viewH / IMAGE_AUTHORED_HEIGHT) * IMAGE_AUTHORED_WIDTH;
+        U8 *dst = (U8 *)Log + (size_t)(s_mapY0 + y) * ModeDesiredX + s_mapX0;
+        for (x = 0; x < IMAGE_AUTHORED_WIDTH; x++)
+            dst[x] = src[s_viewX + x * s_viewW / IMAGE_AUTHORED_WIDTH];
+    }
+    HoloHD_SetView(s_viewX, s_viewY, s_viewW, s_viewH);
+
+    AffUpperLeft(s_mapX0, s_mapY0, 0);
+    AffLowerLeft(s_mapX0, y1, 0);
+    AffUpperRight(x1, s_mapY0, 0);
+    AffLowerRight(x1, y1, 0);
+
+    CopyScreen(Log, Screen);
+    HoloPlanSetProjection();
+}
+
+/* Where on the unzoomed map the chosen place is, to zoom in on it. */
+static void HoloPlanFocus(S32 *fx, S32 *fy) {
+    if (NumObjectif == -1) {
+        *fx = s_viewX + s_viewW / 2;
+        *fy = s_viewY + s_viewH / 2;
+        return;
+    }
+    *fx = s_viewX + (XpObjectif - s_mapX0) * HOLO_ZOOM_ONE / s_zoom;
+    *fy = s_viewY + (YpObjectif - s_mapY0) * HOLO_ZOOM_ONE / s_zoom;
+}
+
+/* The name strip at the bottom, as wide as the map, so nothing beside the
+   map (black, or a widescreen map's sides) shows through it. */
+static void HoloPlanDialWindow(void) {
+    HoloInitDialWindowSpan(s_mapX0 + 8, s_mapX0 + IMAGE_AUTHORED_WIDTH - 1 - 8);
+}
+
 void InitHoloPlan() {
     /*	M3D  36 octets, 9 LONG. Load_HQR lands a compressed entry at
         ptrdest + SizeFile - CompressedSizeFile + RECOVER_AREA, so the
@@ -457,16 +559,22 @@ void InitHoloPlan() {
     const S32 imageX1 = imageX0 + IMAGE_AUTHORED_WIDTH - 1;
     const S32 imageY1 = imageY0 + IMAGE_AUTHORED_HEIGHT - 1;
 
-    AffUpperLeft(imageX0, imageY0, 0);
-    AffLowerLeft(imageX0, imageY1, 0);
-    AffUpperRight(imageX1, imageY0, 0);
-    AffLowerRight(imageX1, imageY1, 0);
+    /* A redrawn map in the hd folder, if there is one. */
+    HoloHD_Begin(id, imageX0, imageY0, PtrPal);
 
-    CopyScreen(Log, Screen);
+    s_mapX0 = imageX0;
+    s_mapY0 = imageY0;
+    for (S32 row = 0; row < IMAGE_AUTHORED_HEIGHT; row++)
+        memcpy(s_mapClean + (size_t)row * IMAGE_AUTHORED_WIDTH,
+               (U8 *)Log + (size_t)(imageY0 + row) * ModeDesiredX + imageX0, IMAGE_AUTHORED_WIDTH);
+    s_zoom = HOLO_ZOOM_ONE;
+    HoloPlanDrawMap(IMAGE_AUTHORED_WIDTH / 2, IMAGE_AUTHORED_HEIGHT / 2);
+    (void)imageX1;
+    (void)imageY1;
 
     //	To avoid Zoom with Window
     if (!FlagMap)
-        HoloInitDialWindow();
+        HoloPlanDialWindow();
 
     pt = buffer;
 
@@ -495,8 +603,7 @@ void InitHoloPlan() {
     ScaleRotBody3D(BufDyno, SCALE_DYNO_PLAN, FALSE);
 
     //	SetProjection( 320, 240, 1024, 1024, 1024 ) 			;
-    SetProjection(imageX0 + IMAGE_AUTHORED_WIDTH / 2,
-                  imageY0 + IMAGE_AUTHORED_HEIGHT / 2, 1024, 700, 700);
+    HoloPlanSetProjection();
     SetFollowCamera(orgmx, 0, orgmz, alpha, beta, 0, distance);
     SetLightVector(lalpha, lbeta, 0);
 
@@ -518,6 +625,7 @@ void InitHoloPlan() {
 }
 //════════════════════════════════════════════════════════════════════════════
 void ClearHoloPlan() {
+    HoloHD_End();
     /*      Unused depuis HoloMalloc
 
 	if ( BufDyno )		Free(BufDyno)		;
@@ -785,13 +893,99 @@ int HoloPlan_IsCaptureArmed(void) {
     return s_holoplan_capture_path[0] != '\0';
 }
 
+/* The reticule sits where the chosen place was projected; after the view
+   moves or zooms, project it again so the cursor stays on its arrow. */
+static void HoloPlanReprojectObjectif(void) {
+    S32 xt = 0, yt = 0, zt = 0;
+    if (NumObjectif == -1)
+        return;
+    if (NumObjectif == 1000) {
+        RecupCoorTwinsen(&xt, &yt, &zt);
+    } else {
+        xt = TabArrow[NumObjectif].X;
+        yt = TabArrow[NumObjectif].Y;
+        zt = TabArrow[NumObjectif].Z;
+    }
+    LongWorldRotatePoint(xt, yt, zt);
+    LongProjectPoint(X0, Y0, Z0);
+    XpObjectif = Xp;
+    YpObjectif = Yp;
+    OldObjectif = -2; /* redraw the reticule there */
+}
+
+/* L / R (Page Up / Page Down) step to the previous / next island Twinsen
+   knows; the right stick zooms in and out on the chosen place. */
+static void HoloPlanExtraInput(void) {
+    static S32 s_prevL = 0, s_prevR = 0;
+    static U32 s_lastTime = 0;
+    static S32 s_lastObjectif = -2;
+    const S32 l = CheckKey(K_GAMEPAD_LSHOULDER) OR CheckKey(K_PAGE_UP);
+    const S32 r = CheckKey(K_GAMEPAD_RSHOULDER) OR CheckKey(K_PAGE_DOWN);
+    const U32 now = TimerRefHR;
+    U32 dt = now - s_lastTime;
+    S32 step = 0;
+    S32 zoom = s_zoom;
+    S32 fx, fy;
+
+    s_lastTime = now;
+    if (dt > 100)
+        dt = 100;
+    if (l AND !s_prevL)
+        step = -1;
+    else if (r AND !s_prevR)
+        step = 1;
+    s_prevL = l;
+    s_prevR = r;
+
+    if (step) {
+        S32 i, island = ZoomedIsland;
+        for (i = 0; i < MAX_ISLAND; i++) {
+            island = (island + step + MAX_ISLAND) % MAX_ISLAND;
+            if (HoloPlan_IslandKnown(island))
+                break;
+        }
+        if (island != ZoomedIsland) {
+            ClearHoloPlan();
+            ZoomedIsland = island;
+            InitHoloPlan();
+            InitObjectifIsland();
+            InitAngleArrow();
+            OldObjectif = -2;
+            NumOldMess = -1;
+            BoxStaticAdd(0, 0, (S32)ModeDesiredX - 1, (S32)ModeDesiredY - 1);
+            s_lastObjectif = NumObjectif;
+            return;
+        }
+    }
+
+    if (JoystickIsPresent()) {
+        S16 rx = 0, ry = 0;
+        JoystickGetRightStick(&rx, &ry);
+        if (ry<-JoystickDeadzone OR ry> JoystickDeadzone)
+            zoom -= (S32)((S64)ry * HOLO_ZOOM_RATE * (S32)dt / (32768 * 1000));
+    }
+    if (zoom < HOLO_ZOOM_ONE)
+        zoom = HOLO_ZOOM_ONE;
+    if (zoom > HOLO_ZOOM_MAX)
+        zoom = HOLO_ZOOM_MAX;
+
+    /* Zoomed in, a new place chosen with the D-pad brings the view to it. */
+    if (zoom != s_zoom OR(s_zoom != HOLO_ZOOM_ONE AND NumObjectif != s_lastObjectif)) {
+        HoloPlanFocus(&fx, &fy);
+        s_zoom = zoom;
+        HoloPlanDrawMap(fx, fy);
+        HoloPlanReprojectObjectif();
+        BoxStaticAdd(0, 0, (S32)ModeDesiredX - 1, (S32)ModeDesiredY - 1);
+    }
+    s_lastObjectif = NumObjectif;
+}
+
 void HoloPlan(S32 numplan) {
-    S32 x0, y0, x1, y1;
     S32 testrelease = 0;
     S32 testnofire = TRUE;
     //	U32	mkey=0, mfire=0	;
     //	U32	mjoy=0, dir	;
-    U32 dir, timer;
+    U32 dir;
 
     UnsetClip();
 
@@ -817,6 +1011,9 @@ void HoloPlan(S32 numplan) {
             FlagHoloEnd = TRUE;
             break;
         }
+
+        if (!FlagMap)
+            HoloPlanExtraInput();
 
         if (testrelease) {
             if (!MenuInput_Held()) {
@@ -862,40 +1059,13 @@ void HoloPlan(S32 numplan) {
             //      HoloGlobe()
             BoxReset();
 
-            // Zoom-in animates from the reticule centre (CENTERX/Y are
-            // image-relative) out to the image rect, not the framebuffer
-            // rect. Only the growing box is marked, so everything outside
-            // it, sidebars included, keeps the last globe frame until the
-            // full flip below, as in the original.
-            const S32 anim_imageX0 = ((S32)ModeDesiredX - IMAGE_AUTHORED_WIDTH) / 2;
-            const S32 anim_imageY0 = ((S32)ModeDesiredY - IMAGE_AUTHORED_HEIGHT) / 2;
-            const S32 anim_imageX1 = anim_imageX0 + IMAGE_AUTHORED_WIDTH - 1;
-            const S32 anim_imageY1 = anim_imageY0 + IMAGE_AUTHORED_HEIGHT - 1;
-            while (TRUE) {
-                ManageTime();
-                timer = TimerRefHR - MemoTimerRot;
-                x0 = BoundRegleTrois(CENTERX + anim_imageX0 - 8, anim_imageX0, 1000, timer);
-                y0 = BoundRegleTrois(CENTERY + anim_imageY0 - 8, anim_imageY0, 1000, timer);
-                x1 = BoundRegleTrois(CENTERX + anim_imageX0 + 8, anim_imageX1, 1000, timer);
-                y1 = BoundRegleTrois(CENTERY + anim_imageY0 + 8, anim_imageY1, 1000, timer);
-
-                if (x0 == anim_imageX0) {
-                    break; // Before Crash!
-                }
-
-                ScaleBox(anim_imageX0, anim_imageY0, anim_imageX1, anim_imageY1, BufSpeak, x0, y0, x1, y1, Log);
-
-                AffUpperLeft(x0, y0, 0);
-                AffLowerLeft(x0, y1, 0);
-                AffUpperRight(x1, y0, 0);
-                AffLowerRight(x1, y1, 0);
-
-                BoxStaticAdd(x0, y0, x1, y1); // Optimisable
-                BoxUpdate();
-            }
+            /* A fade instead of the original zoom-in box: the globe has
+               faded out (HoloGlobe), and the whole map, a redrawn one with
+               its widescreen sides too, fades in at once. */
             CopyScreen(BufSpeak, Log);
-            HoloInitDialWindow();
+            HoloPlanDialWindow();
             BoxStaticFullflip();
+            FadeToPal(PtrPal);
             FlagMap = 0;
             //	To avoid Jumping Arrow
             SetTimerHR(MemoTimerRot);

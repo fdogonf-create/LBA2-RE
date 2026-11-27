@@ -68,3 +68,4 @@ void Uwp_SurfaceCoords(int32_t x, int32_t y, int32_t *sx, int32_t *sy);
 void Uwp_SetVSync(bool enabled);
 bool Uwp_SetPresentFilter(PlatformPresentFilter mode);
 bool Uwp_Present(const PlatformFrame *frame);
+bool Uwp_PresentVideo(const PlatformVideoFrame *frame);

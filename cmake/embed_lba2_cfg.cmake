@@ -6,8 +6,9 @@ endif()
 
 # LANGUAGE, when given, replaces the seed's text language (not LanguageCD), for a
 # build whose players expect another language on a fresh install.
-# MODERN_PAD, when true, frees the D-pad's up and down for the camera zoom, as
-# the compiled defaults of such a build do (INPUT_BINDINGS.CPP).
+# MODERN_PAD, when true, seeds the Switch button layout and frees the D-pad's up
+# and down for the camera zoom, as the compiled defaults of such a build do
+# (INPUT_BINDINGS.CPP).
 set(_edit FALSE)
 if((DEFINED LANGUAGE AND NOT LANGUAGE STREQUAL "") OR MODERN_PAD)
     set(_edit TRUE)
@@ -17,8 +18,18 @@ if(DEFINED LANGUAGE AND NOT LANGUAGE STREQUAL "")
     string(REGEX REPLACE "\nLanguage: [^\r\n]*" "\nLanguage: ${LANGUAGE}" _text "${_text}")
 endif()
 if(MODERN_PAD)
-    string(REGEX REPLACE "\nGamepad33: [^\r\n]*" "\nGamepad33: 0" _text "${_text}")
-    string(REGEX REPLACE "\nGamepad34: [^\r\n]*" "\nGamepad34: 0" _text "${_text}")
+    # The Switch layout of INPUT_BINDINGS.CPP, in SDL's positional names: B
+    # (1025, the Switch's A) talks, A (1024, its B) throws, Y (1027, its X) is
+    # the behaviour's action, X (1026, its Y) the holomap, Back (1028, -) the
+    # inventory, ZR (1048) the protection spell; D-pad down is the zoom.
+    foreach(_pair "4:1024" "6:1028" "7:1027" "8:1025" "11:1026" "33:0" "34:1048")
+        string(REPLACE ":" ";" _kv "${_pair}")
+        list(GET _kv 0 _slot)
+        list(GET _kv 1 _key)
+        string(REGEX REPLACE "\nGamepad${_slot}: [^\r\n]*" "\nGamepad${_slot}: ${_key}" _text "${_text}")
+    endforeach()
+    # Movies fill the screen on a fresh install (LBA2_VIDEO_FULLSCREEN_DEFAULT).
+    string(REGEX REPLACE "\nFullScreen: [^\r\n]*" "\nFullScreen: 2" _text "${_text}")
 endif()
 if(_edit)
     set(INPUT "${OUTPUT}.cfg")

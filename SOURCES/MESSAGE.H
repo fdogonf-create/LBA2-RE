@@ -89,6 +89,7 @@ extern void AffFleche(void);
 extern void TestAndDrawRadio(void);
 extern void InitDialWindow(void);
 extern void HoloInitDialWindow(void);
+extern void HoloInitDialWindowSpan(S32 x0, S32 x1);
 extern void AffHoloDialWindow(void);
 extern void NormalWinDial(void);
 extern void BigWinDial(void);

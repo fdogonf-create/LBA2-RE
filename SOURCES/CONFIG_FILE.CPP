@@ -1,7 +1,9 @@
 #include "C_EXTERN.H"
 
 #include "CONFIG_FILE.H"
-#include "ANALOGMOVE.H" /* GamepadAnalogMove and its default */
+#include "ANALOGMOVE.H"   /* GamepadAnalogMove and its default */
+#include "ACTIONHINT.H"   /* GamepadActionHint and its default */
+#include "COMBATASSIST.H" /* CombatAssist and its default */
 #include "SETTINGS.H"
 #include "CONSOLE/CONSOLE.H" /* Console_SetToggleScancode */
 #include "CONTROL.H"         /* Control_Has* / Control_Get*: the per-run overrides */
@@ -51,8 +53,16 @@ static S32 StoredTexFilter = 0;
 static S32 EnvTexFilter = -1;
 /* How the frame is filtered when stretched to the window: one of
    PLATFORM_FILTER_*. Only this file reads it; the backend holds the mode in use. */
-static S32 DisplayPresentFilter = PLATFORM_FILTER_NEAREST;
-static S32 StoredPresentFilter = PLATFORM_FILTER_NEAREST;
+/* The Switch build (LBA2_MODERN_PAD_DEFAULT) starts at smooth + crt. */
+#ifndef LBA2_PRESENT_FILTER_DEFAULT
+#if defined(LBA2_MODERN_PAD_DEFAULT) && LBA2_MODERN_PAD_DEFAULT
+#define LBA2_PRESENT_FILTER_DEFAULT PLATFORM_FILTER_SMOOTH_CRT
+#else
+#define LBA2_PRESENT_FILTER_DEFAULT PLATFORM_FILTER_NEAREST
+#endif
+#endif
+static S32 DisplayPresentFilter = LBA2_PRESENT_FILTER_DEFAULT;
+static S32 StoredPresentFilter = LBA2_PRESENT_FILTER_DEFAULT;
 static S32 EnvPresentFilter = -1;
 static S32 StoredFixedTimestep = 16;
 static S32 StoredLanguage = 0;
@@ -130,10 +140,10 @@ static void ApplyDetailLevel(S32 level) {
 
 /* LBA2_PRESENT_FILTER takes the names, or the numbers the cfg and console use. */
 static S32 ParsePresentFilter(const char *text) {
-    static const char *const names[] = {"nearest", "linear", "pixelart"};
+    static const char *const names[] = {"nearest", "linear", "pixelart", "smooth", "crt", "smoothcrt"};
     S32 i;
 
-    for (i = PLATFORM_FILTER_NEAREST; i <= PLATFORM_FILTER_PIXELART; i++) {
+    for (i = PLATFORM_FILTER_NEAREST; i <= PLATFORM_FILTER_SMOOTH_CRT; i++) {
         const bool isNumber = (text[0] == '0' + i AND text[1] == '\0');
         if (isNumber OR !strcasecmp(text, names[i]))
             return i;
@@ -163,7 +173,7 @@ static const T_SETTING BootSettings[] = {
     {"FollowCamera", "AutoCameraCenter", NULL, &FollowCamera, SETTING_OR_DEFAULT, LBA2_FOLLOW_CAMERA_DEFAULT, 0, 1, NULL, NULL, NULL},
     {"DetailLevel", NULL, NULL, &DetailLevel, SETTING_CLAMP, MAX_DETAIL_LEVEL, 0, MAX_DETAIL_LEVEL, NULL, NULL,
      ApplyDetailLevel},
-    {"FullScreen", NULL, NULL, &VideoFullScreen, SETTING_OR_DEFAULT, TRUE, 0, 1, NULL, NULL, NULL, NULL, NULL,
+    {"FullScreen", NULL, NULL, &VideoFullScreen, SETTING_OR_DEFAULT, LBA2_VIDEO_FULLSCREEN_DEFAULT, 0, 2, NULL, NULL, NULL, NULL, NULL,
      SETTING_NOT_RECORDED},
     {"DisplayFullScreen", NULL, NULL, &DisplayFullScreen, SETTING_OR_DEFAULT, TRUE, 0, 1, NULL, NULL, NULL, NULL, NULL,
      SETTING_NOT_RECORDED},
@@ -174,9 +184,9 @@ static const T_SETTING BootSettings[] = {
     {"TextureFilter", NULL, "gfx_texfilter", &PolyTexFilter, SETTING_OR_DEFAULT, POLY_TEX_FILTER_OFF,
      POLY_TEX_FILTER_OFF, POLY_TEX_FILTER_BILINEAR, &StoredTexFilter, ForcedTexFilter, NULL, &SourceTexFilter,
      "Texture filtering: 0 off, 1 horizontal, 2 bilinear", SETTING_NOT_RECORDED},
-    {"PresentFilter", NULL, "gfx_presentfilter", &DisplayPresentFilter, SETTING_OR_DEFAULT, PLATFORM_FILTER_NEAREST,
-     PLATFORM_FILTER_NEAREST, PLATFORM_FILTER_PIXELART, &StoredPresentFilter, ForcedPresentFilter, ApplyPresentFilter,
-     &SourcePresentFilter, "Filter stretching the frame to the window: 0 nearest, 1 linear, 2 pixelart",
+    {"PresentFilter", NULL, "gfx_presentfilter", &DisplayPresentFilter, SETTING_OR_DEFAULT, LBA2_PRESENT_FILTER_DEFAULT,
+     PLATFORM_FILTER_NEAREST, PLATFORM_FILTER_SMOOTH_CRT, &StoredPresentFilter, ForcedPresentFilter, ApplyPresentFilter,
+     &SourcePresentFilter, "Filter stretching the frame to the window: 0 nearest, 1 linear, 2 pixelart, 3 smooth, 4 crt, 5 smooth+crt",
      SETTING_NOT_RECORDED},
     {"FixedTimestep", NULL, NULL, &FixedTimestep, SETTING_OR_DEFAULT, 16, 0, 100,
      &StoredFixedTimestep, ForcedFixedTimestep, NULL, &SourceFixedTimestep, NULL, SETTING_NOT_RECORDED},
@@ -225,6 +235,14 @@ static const T_SETTING GamepadSettings[] = {
      NULL, NULL, NULL, NULL, "Analog right-stick camera in Auto cam", SETTING_RECORDED, SETTING_BEFORE_NONE},
     {"GamepadDpadZoom", NULL, "pad_dpad_zoom", &GamepadDpadZoom, SETTING_TRUTHY, LBA2_MODERN_PAD_DEFAULT, 0, 1,
      NULL, NULL, NULL, NULL, "D-pad up / down zoom the Auto camera in / out", SETTING_RECORDED, SETTING_BEFORE(0)},
+    {"CombatAssist", NULL, "combat_assist", &CombatAssist, SETTING_TRUTHY, LBA2_COMBAT_ASSIST_DEFAULT, 0, 1, NULL,
+     NULL, NULL, NULL, "Improved combat: attack cuts a knock-back short, a moment free of the next one",
+     SETTING_RECORDED, SETTING_BEFORE(0), SETTING_ABSENT_BEFORE},
+    {"GamepadActionHint", NULL, "pad_action_hint", &GamepadActionHint, SETTING_TRUTHY, LBA2_ACTION_HINT_DEFAULT, 0, 1,
+     NULL, NULL, NULL, NULL, "Show a small A button while the action button would do something",
+     SETTING_NOT_RECORDED, SETTING_BEFORE(0)},
+    {"GamepadQuickMenu", NULL, "pad_quick_menu", &GamepadQuickMenu, SETTING_TRUTHY, LBA2_MODERN_PAD_DEFAULT, 0, 1,
+     NULL, NULL, NULL, NULL, "R opens a quick row of the objects Twinsen can use", SETTING_RECORDED, SETTING_BEFORE(0)},
     {"GamepadBehaviourCycle", NULL, "pad_cycle_behaviour", &GamepadBehaviourCycle, SETTING_TRUTHY,
      LBA2_MODERN_PAD_DEFAULT, 0, 1, NULL, NULL, NULL, NULL, "A tap of ZL steps to the next behaviour",
      SETTING_RECORDED, SETTING_BEFORE(0)},
@@ -463,6 +481,11 @@ static void WriteOwnedConfig(void) {
 
     DefFileBufferWriteString(
         "Language", GetLanguageName(Settings_ValueToPersist(Language, StoredLanguage, ForcedLanguage())));
+#ifdef LBA2_DEFAULT_LANGUAGE
+    /* Marks the Language above as written by a build that starts in another
+       language, so InitLanguage trusts it (see there). */
+    DefFileBufferWriteValue("LanguagePicked", 1);
+#endif
 #ifdef CDROM
     DefFileBufferWriteString("LanguageCD", GetLanguageName(LanguageCD));
 #endif
@@ -501,6 +524,7 @@ static void WriteOwnedConfig(void) {
 /*──────────────────────────────────────────────────────────────────────────*/
 void WriteConfigFile(void) {
     WriteOwnedConfig();
+    ActionHint_NoteSaving((U32)g_platform.system.ticks_ms(), Language == 3);
     /* Reads after this point see what the boot assembled, which matters because
        this is also called mid-run: the options menu and a resolution switch. */
     RestackDataConfig();

@@ -17,6 +17,21 @@ S32 GamepadBehaviourCycle = LBA2_MODERN_PAD_DEFAULT;
 S32 GamepadCameraCurve = LBA2_MODERN_PAD_DEFAULT;
 
 static S32 s_cycleHeld = 0;
+S32 GamepadQuickMenu = LBA2_MODERN_PAD_DEFAULT;
+static S32 s_quickHeld = 0;
+
+S32 AnalogMove_QuickMenuPressed(void) {
+    S32 down;
+    S32 pressed;
+    if (!GamepadQuickMenu || !JoystickIsPresent() || Record_IsReplaying()) {
+        s_quickHeld = 0;
+        return 0;
+    }
+    down = CheckKey(K_GAMEPAD_RSHOULDER) ? 1 : 0;
+    pressed = down && !s_quickHeld;
+    s_quickHeld = down;
+    return pressed;
+}
 
 S32 AnalogMove_BehaviourCyclePressed(void) {
     S32 down;
@@ -56,7 +71,33 @@ static U32 s_lastTime = 0;
 /* A frame longer than this (a pause, a load) turns him no further than this one. */
 #define ANALOG_MOVE_MAX_DT_MS 100
 
-void AnalogMove_Apply(S32 *beta, S32 canTurn, S32 exterior, S32 climbing, S32 betaCam, S32 cameraOrbiting) {
+/* A stick pulled this far against his facing backs him up near a ladder. */
+#define ANALOG_MOVE_BACK_MIN_DIFF 1536
+
+void AnalogMove_ApplyBuggy(void) {
+    if (!GamepadAnalogMove || !JoystickIsPresent() || Record_IsReplaying())
+        return;
+    if (CheckKey(K_GAMEPAD_RTRIGGER))
+        Input |= I_UP;
+    else if (CheckKey(K_GAMEPAD_LTRIGGER))
+        Input |= I_DOWN;
+}
+
+S32 AnalogMove_StickTarget(S32 exterior, S32 betaCam) {
+    S16 lx = 0;
+    S16 ly = 0;
+    S32 dz = JoystickDeadzone;
+
+    if (!GamepadAnalogMove || !JoystickIsPresent() || Record_IsReplaying())
+        return -1;
+    JoystickGetLeftStick(&lx, &ly);
+    if ((S32)lx * lx + (S32)ly * ly < dz * dz)
+        return -1;
+    return exterior ? AnalogMove_TargetExterior(lx, ly, betaCam) : AnalogMove_TargetIso(lx, ly);
+}
+
+void AnalogMove_Apply(S32 *beta, S32 canTurn, S32 exterior, S32 onLadder, S32 nearLadder, S32 betaCam,
+                      S32 cameraOrbiting) {
     S16 lx = 0;
     S16 ly = 0;
     S32 dz;
@@ -82,9 +123,14 @@ void AnalogMove_Apply(S32 *beta, S32 canTurn, S32 exterior, S32 climbing, S32 be
         return;
     }
 
-    /* Ladders read up and down as climb and descend. */
-    if (climbing) {
+    /* On a ladder, up climbs and down comes down. */
+    if (onLadder) {
         s_held = 0;
+        Input &= ~(I_UP | I_DOWN);
+        if (ly < -dz)
+            Input |= I_UP;
+        else if (ly > dz)
+            Input |= I_DOWN;
         return;
     }
 
@@ -105,6 +151,16 @@ void AnalogMove_Apply(S32 *beta, S32 canTurn, S32 exterior, S32 climbing, S32 be
 
     /* The stick owns the frame's movement: no tank turn, no walking backwards. */
     Input &= ~I_JOY;
+
+    /* At a ladder or window, pulling away from it backs him up (down the
+       ladder from the top) rather than turning him round on the spot. */
+    if (nearLadder) {
+        diff = AnalogMove_AngleDiff(*beta, target);
+        if (diff >= ANALOG_MOVE_BACK_MIN_DIFF || diff <= -ANALOG_MOVE_BACK_MIN_DIFF) {
+            Input |= I_DOWN;
+            return;
+        }
+    }
 
     if (canTurn) {
         S32 step = (S32)((ANALOG_MOVE_TURN_RATE * dt) / 1000);

@@ -36,6 +36,8 @@ extern S32 GfxDitherShading;
 
 #include <SVGA/SCREEN.H>
 #include <SYSTEM/KEYBOARD_KEYS.H>
+#include "ACTIONHINT.H" /* ActionHint_Render, after the touch overlay */
+#include "CAMHUD.H"     /* CamHud_Render, the tester camera readout */
 #include "FOLLOWCAM.H"
 #include "FOLLOWCAM_CFG.H"  /* the *_DEFAULT tunables, read and written by the cfg below */
 #include "FOLLOWCAM_MATH.H" /* FollowCamIsoStep: one frame of the interior follow */
@@ -1187,7 +1189,8 @@ restartloop:
                 }
             }
 
-            if ((Input & I_INVENTORY)
+            S32 quickMenu = AnalogMove_QuickMenuPressed();
+            if ((Input & I_INVENTORY OR quickMenu)
                     AND(PtrComportement->Flags & CF_INVENTORY)
                         AND(ptrobj->Obj.Body.Num != -1)
                             AND !(ptrobj->WorkFlags & SKATING)
@@ -1195,7 +1198,10 @@ restartloop:
                 SaveTimer();
                 StopSpeak();
                 BackupScreen(TRUE);
-                MenuInventory(0);
+                if (quickMenu AND !(Input & I_INVENTORY))
+                    MenuQuickInventory(); /* R: the row of usable objects */
+                else
+                    MenuInventory(0);
 
                 switch (InventoryAction) {
                 case FLAG_HOLOMAP: // holomap
@@ -1939,6 +1945,17 @@ restartloop:
         if (CinemaMode OR !FollowCamera)
             FollowCamForgetLoan();
 
+        /* Tester readout (CAMHUD.H): who drives the camera, before GereExtKeys
+         * notes the Auto camera's values. */
+        if (CamHud_Enabled())
+            CamHud_NoteMode((U32)g_platform.system.ticks_ms(),
+                            CinemaMode                   ? CAM_HUD_CINEMA
+                            : CubeMode != CUBE_EXTERIEUR ? CAM_HUD_INTERIOR
+                            : CameraZone                 ? CAM_HUD_ZONE
+                            : !FollowCamera              ? CAM_HUD_OFF
+                                                         : CAM_HUD_AUTO,
+                            Island, NumCube);
+
         if (!CameraZone) {
             if (!CinemaMode) {
                 // AlphaCam (touches '+' et '-' *)
@@ -2218,6 +2235,14 @@ void Message(const char *mess, S32 flag) {
  * copies its bytes. */
 #define ADD_SIGNED(name, variable) Crash_AddState(name, (const void *)&(variable), sizeof(variable), 1)
 #define ADD_UNSIGNED(name, variable) Crash_AddState(name, (const void *)&(variable), sizeof(variable), 0)
+
+/* The overlays drawn over the presented frame: the touch pad, then the action
+   hint (ACTIONHINT.H), each a no-op when it has nothing to draw. */
+static void OverlayPrePresent(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const U8 *palette_rgb) {
+    TouchOverlay_Render(frameBuffer, pitch, width, height, palette_rgb);
+    ActionHint_Render(frameBuffer, pitch, width, height, palette_rgb);
+    CamHud_Render(frameBuffer, pitch, width, height, palette_rgb);
+}
 
 /* A suspended app may be ended by the system with no exit, so TheEndInfo's
    write never runs: keep the settings when the app is suspended instead. */
@@ -2645,7 +2670,7 @@ int Lba2Main(int argc, char *argv[]) {
        nothing to say why. TouchOverlay_Render is a no-op when there is
        nothing to draw. */
     TouchOverlay_Init();
-    SetOverlayPrePresentCallback(TouchOverlay_Render);
+    SetOverlayPrePresentCallback(OverlayPrePresent);
 
     /* Perftrace: ring-buffer per-frame timing capture; off by default, opt-in
        via the `perftrace` console verb. See docs/PERFTRACE.md. */

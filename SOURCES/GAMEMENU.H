@@ -97,6 +97,8 @@ extern void Resolution_MainCapture(const char *path);
 extern void Advanced_MainCapture(const char *path);
 /* Harness hook: capture the Camera page (opened from Advanced options), the same way. */
 extern void Camera_MainCapture(const char *path);
+/* Harness hook: capture a page (from 0) of the movie library, the same way. */
+extern void Videoteca_MainCapture(const char *path, S32 page);
 /*--------------------------------------------------------------------------*/
 extern void VolumeOptions(void);
 /*--------------------------------------------------------------------------*/

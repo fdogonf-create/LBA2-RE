@@ -78,7 +78,7 @@ U32 ParmSampleFrequence = 0;
 
 S32 DetailLevel = MAX_DETAIL_LEVEL;
 
-S32 VideoFullScreen = TRUE;
+S32 VideoFullScreen = LBA2_VIDEO_FULLSCREEN_DEFAULT;
 S32 DisplayFullScreen = TRUE;
 S32 DisplayVSync = TRUE;
 

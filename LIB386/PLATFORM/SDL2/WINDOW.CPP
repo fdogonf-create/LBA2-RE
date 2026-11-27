@@ -1,5 +1,7 @@
 #include "PRIVATE.H"
 
+#include "GLFILTER.H"
+
 #include <limits.h>
 
 namespace {
@@ -8,9 +10,21 @@ const char *s_title = NULL;
 SDL_Window *s_window = NULL;
 SDL_Renderer *s_renderer = NULL;
 SDL_Texture *s_texture = NULL;
+SDL_Texture *s_videoTexture = NULL; /* movie frames (IYUV), sized to the source */
+uint32_t s_videoWidth = 0, s_videoHeight = 0;
 uint32_t s_width = 0, s_height = 0;
 bool s_fullscreen = false;
 SDL_ScaleMode s_scaleMode = SDL_ScaleModeNearest;
+int s_glFilter = -1; /* LBA2_GL_FILTER_*, or -1 for SDL's own copy */
+/* The last frame's backdrop (PlatformBackdrop), drawn under the frame. */
+SDL_Texture *s_backdropTexture = NULL;
+const uint32_t *s_backdropPixels = NULL;
+uint32_t s_backdropSerial = 0;
+bool s_backdropOn = false;
+SDL_Rect s_backdropRect = {0, 0, 0, 0}; /* in frame pixels */
+SDL_Rect s_backdropSrc = {0, 0, 0, 0};  /* in picture pixels; w 0 for all of it */
+Uint8 s_backdropBright = 255;
+bool s_backdropSpill = false;
 #ifdef LBA2_SDL2_TESTS
 void (*s_presentProbe)(SDL_Renderer *) = NULL;
 int (*s_fullscreenProbe)(SDL_Window *, Uint32) = NULL;
@@ -46,13 +60,139 @@ int32_t Coordinate(int32_t value, int origin, int extent, uint32_t dimension) {
         return (int32_t)dimension - 1;
     return (int32_t)mapped;
 }
+/* The frame's own viewport `area` narrowed to the frame-pixel rectangle r. */
+SDL_Rect MapRect(const SDL_Rect &area, const SDL_Rect &r) {
+    SDL_Rect out;
+    out.x = area.x + (int)((double)r.x * area.w / s_width);
+    out.y = area.y + (int)((double)r.y * area.h / s_height);
+    out.w = (int)((double)(r.x + r.w) * area.w / s_width) + area.x - out.x;
+    out.h = (int)((double)(r.y + r.h) * area.h / s_height) + area.y - out.y;
+    return out;
+}
+
+/* Take the frame's backdrop: upload its picture when it is a new one, and
+   clear the frame's alpha where the frame still shows the indexed original,
+   so the picture shows through there. */
+void ApplyBackdrop(const PlatformFrame *frame, uint32_t *pixels, uint32_t pitch) {
+    const PlatformBackdrop *b = frame->backdrop;
+    s_backdropOn = false;
+    if (!b || !b->argb || !b->key || !b->width || !b->height || b->w <= 0 || b->h <= 0)
+        return;
+    if (!s_backdropTexture || b->argb != s_backdropPixels || b->serial != s_backdropSerial) {
+        int tw = 0, th = 0;
+        if (s_backdropTexture)
+            SDL_QueryTexture(s_backdropTexture, NULL, NULL, &tw, &th);
+        if (!s_backdropTexture || tw != (int)b->width || th != (int)b->height) {
+            SDL_DestroyTexture(s_backdropTexture);
+            s_backdropTexture = SDL_CreateTexture(s_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC,
+                                                  (int)b->width, (int)b->height);
+            if (!s_backdropTexture) {
+                Error("Unable to create SDL2 backdrop texture");
+                s_backdropPixels = NULL;
+                return;
+            }
+            SDL_SetTextureScaleMode(s_backdropTexture, SDL_ScaleModeLinear);
+            SDL_SetTextureBlendMode(s_backdropTexture, SDL_BLENDMODE_NONE);
+        }
+        if (SDL_UpdateTexture(s_backdropTexture, NULL, b->argb, (int)(b->width * sizeof(uint32_t))) != 0) {
+            Error("Unable to upload SDL2 backdrop");
+            s_backdropPixels = NULL;
+            return;
+        }
+        s_backdropPixels = b->argb;
+        s_backdropSerial = b->serial;
+    }
+
+    /* Dimmed with the palette: a fade takes the picture down with it. */
+    uint32_t now = 0, full = 0;
+    if (b->key_palette) {
+        for (int i = 0; i < 256 * 3; ++i) {
+            now += frame->palette_rgb[i];
+            full += b->key_palette[i];
+        }
+    }
+    s_backdropBright = (Uint8)(full == 0 || now >= full ? 255 : (now * 255) / full);
+
+    const int x0 = b->x < 0 ? 0 : b->x, y0 = b->y < 0 ? 0 : b->y;
+    const int x1 = b->x + b->w > (int)frame->width ? (int)frame->width : b->x + b->w;
+    const int y1 = b->y + b->h > (int)frame->height ? (int)frame->height : b->y + b->h;
+    for (int y = y0; y < y1; ++y) {
+        const uint8_t *src = frame->pixels + (size_t)y * frame->pitch;
+        const uint8_t *key = b->key + (size_t)(y - b->y) * (size_t)b->w - b->x;
+        uint32_t *dst = (uint32_t *)((uint8_t *)pixels + (size_t)y * pitch);
+        for (int x = x0; x < x1; ++x) {
+            if (src[x] == key[x])
+                dst[x] &= 0x00FFFFFFu;
+        }
+    }
+    s_backdropRect.x = b->x;
+    s_backdropRect.y = b->y;
+    s_backdropRect.w = b->w;
+    s_backdropRect.h = b->h;
+    s_backdropSrc.x = b->src_x;
+    s_backdropSrc.y = b->src_y;
+    s_backdropSrc.w = b->src_w > 0 && b->src_h > 0 ? b->src_w : 0;
+    s_backdropSrc.h = b->src_h;
+    s_backdropSpill = b->spill != 0;
+    s_backdropOn = true;
+}
+
 bool PresentTexture() {
     int width, height;
     if (SDL_GetRendererOutputSize(s_renderer, &width, &height) != 0)
         return Error("Unable to query SDL2 render dimensions");
     const SDL_Rect area = Viewport(width, height);
-    if (SDL_SetRenderDrawColor(s_renderer, 0, 0, 0, 255) != 0 ||
-        SDL_RenderClear(s_renderer) != 0 || SDL_RenderCopy(s_renderer, s_texture, NULL, &area) != 0)
+    if (SDL_SetRenderDrawColor(s_renderer, 0, 0, 0, 255) != 0 || SDL_RenderClear(s_renderer) != 0)
+        return Error("Unable to present SDL2 frame");
+    bool drawn = false;
+    if (s_backdropOn && s_backdropTexture) {
+        /* The picture first, the frame over it with its holes; a shader
+           filter would have no use on a still map, so SDL's copy draws it. */
+        SDL_Rect dst = MapRect(area, s_backdropRect);
+        SDL_Rect src = s_backdropSrc;
+        int tw = 0, th = 0;
+        SDL_QueryTexture(s_backdropTexture, NULL, NULL, &tw, &th);
+        if (!src.w) {
+            src.x = 0;
+            src.y = 0;
+            src.w = tw;
+            src.h = th;
+        }
+        if (s_backdropSpill && src.w > 0 && dst.w > 0) {
+            /* A widescreen picture: the rest of it beside the frame, into
+               the bars, at the same scale, as far as either reaches. */
+            const double scale = (double)dst.w / src.w;
+            int left = (int)(dst.x / scale), right = (int)((width - dst.x - dst.w) / scale);
+            if (left > src.x)
+                left = src.x;
+            if (right > tw - src.x - src.w)
+                right = tw - src.x - src.w;
+            if (left < 0)
+                left = 0;
+            if (right < 0)
+                right = 0;
+            const int dx0 = dst.x - (int)(left * scale + 0.5), dx1 = dst.x + dst.w + (int)(right * scale + 0.5);
+            src.x -= left;
+            src.w += left + right;
+            dst.x = dx0;
+            dst.w = dx1 - dx0;
+        }
+        SDL_SetTextureColorMod(s_backdropTexture, s_backdropBright, s_backdropBright, s_backdropBright);
+        SDL_SetTextureBlendMode(s_texture, SDL_BLENDMODE_BLEND);
+        if (SDL_RenderCopy(s_renderer, s_backdropTexture, &src, &dst) != 0 ||
+            SDL_RenderCopy(s_renderer, s_texture, NULL, &area) != 0)
+            return Error("Unable to present SDL2 frame");
+        drawn = true;
+    } else {
+        SDL_SetTextureBlendMode(s_texture, SDL_BLENDMODE_NONE);
+    }
+#if LBA2_SDL2_GL_FILTERS
+    /* A shader filter that cannot draw (no GLES2, a shader the driver refused)
+       falls back to the plain linear copy its texture is set up for. */
+    if (!drawn && s_glFilter >= 0)
+        drawn = SDL2_GLFilterDraw(s_renderer, s_texture, s_glFilter, s_width, s_height, &area, height);
+#endif
+    if (!drawn && SDL_RenderCopy(s_renderer, s_texture, NULL, &area) != 0)
         return Error("Unable to present SDL2 frame");
 #ifdef LBA2_SDL2_TESTS
     if (s_presentProbe)
@@ -158,7 +298,17 @@ bool SDL2_ResizeWindow(uint32_t width, uint32_t height, bool keepSize) {
     return true;
 }
 void SDL2_DestroyWindow() {
+    SDL_DestroyTexture(s_backdropTexture);
+    s_backdropTexture = NULL;
+    s_backdropPixels = NULL;
+    s_backdropOn = false;
+    SDL_DestroyTexture(s_videoTexture);
+    s_videoTexture = NULL;
+    s_videoWidth = s_videoHeight = 0;
     SDL_DestroyTexture(s_texture);
+#if LBA2_SDL2_GL_FILTERS
+    SDL2_GLFilterForget(s_renderer);
+#endif
     SDL_DestroyRenderer(s_renderer);
     SDL_DestroyWindow(s_window);
     s_texture = NULL;
@@ -235,6 +385,7 @@ void SDL2_SetVSync(bool enabled) {
 }
 bool SDL2_SetPresentFilter(PlatformPresentFilter mode) {
     SDL_ScaleMode resolved;
+    int glFilter = -1;
     switch (mode) {
     case PLATFORM_FILTER_NEAREST:
         resolved = SDL_ScaleModeNearest;
@@ -243,16 +394,37 @@ bool SDL2_SetPresentFilter(PlatformPresentFilter mode) {
         resolved = SDL_ScaleModeLinear;
         break;
     case PLATFORM_FILTER_PIXELART:
-        SDL_SetError("SDL2 does not support the pixelart present filter");
+    case PLATFORM_FILTER_SMOOTH:
+    case PLATFORM_FILTER_CRT:
+    case PLATFORM_FILTER_SMOOTH_CRT:
+#if LBA2_SDL2_GL_FILTERS
+        /* Before the window exists the renderer cannot be asked; the filter is
+           taken, and the first present falls back to linear if it cannot draw. */
+        if (s_renderer && !SDL2_GLFilterAvailable(s_renderer)) {
+            SDL_SetError("The %s present filter needs SDL's opengles2 renderer",
+                         mode == PLATFORM_FILTER_PIXELART ? "pixelart" : "shader");
+            return false;
+        }
+        resolved = SDL_ScaleModeLinear;
+        glFilter = mode == PLATFORM_FILTER_PIXELART ? LBA2_GL_FILTER_PIXELART
+                   : mode == PLATFORM_FILTER_SMOOTH ? LBA2_GL_FILTER_SMOOTH
+                   : mode == PLATFORM_FILTER_CRT    ? LBA2_GL_FILTER_CRT
+                                                    : LBA2_GL_FILTER_SMOOTH_CRT;
+        break;
+#else
+        SDL_SetError("SDL2 does not support the %s present filter",
+                     mode == PLATFORM_FILTER_PIXELART ? "pixelart" : "shader");
         return false;
+#endif
     default:
         SDL_SetError("Unknown present filter %d", (int)mode);
         return false;
     }
     if (s_texture && SDL_SetTextureScaleMode(s_texture, resolved) != 0)
         return false;
-    const bool changed = resolved != s_scaleMode;
+    const bool changed = resolved != s_scaleMode || glFilter != s_glFilter;
     s_scaleMode = resolved;
+    s_glFilter = glFilter;
     if (changed && s_renderer && s_texture)
         PresentTexture();
     return true;
@@ -283,8 +455,70 @@ bool SDL2_Present(const PlatformFrame *frame) {
     if (SDL_LockTexture(s_texture, NULL, &pixels, &pitch) != 0)
         return Error("Unable to lock SDL2 presentation texture");
     bool converted = Platform_ConvertIndexedFrame(frame, (uint32_t *)pixels, (uint32_t)pitch);
+    if (converted)
+        ApplyBackdrop(frame, (uint32_t *)pixels, (uint32_t)pitch);
+    else
+        s_backdropOn = false;
     if (converted && frame->overlay)
         frame->overlay((uint32_t *)pixels, (uint32_t)pitch, frame->width, frame->height, frame->palette_rgb);
     SDL_UnlockTexture(s_texture);
     return converted && PresentTexture();
+}
+
+/* dst_* is in framebuffer pixels; map it into the same letterboxed viewport
+   the indexed frame is drawn to. fill_display covers the whole output
+   instead, cropping the frame to the output's aspect. */
+bool SDL2_PresentVideo(const PlatformVideoFrame *frame) {
+    if (!frame || !frame->y || !frame->u || !frame->v || !frame->width || !frame->height ||
+        !s_renderer || !s_width || !s_height) {
+        SDL_SetError("Invalid movie frame");
+        return Error("SDL2 present");
+    }
+    if (!s_videoTexture || s_videoWidth != frame->width || s_videoHeight != frame->height) {
+        SDL_DestroyTexture(s_videoTexture);
+        /* MPEG-1 decodes BT.601; SDL2 would pick BT.709 for a frame this tall. */
+        SDL_SetYUVConversionMode(SDL_YUV_CONVERSION_BT601);
+        s_videoTexture = SDL_CreateTexture(s_renderer, SDL_PIXELFORMAT_IYUV,
+                                           SDL_TEXTUREACCESS_STREAMING, (int)frame->width,
+                                           (int)frame->height);
+        if (!s_videoTexture) {
+            s_videoWidth = s_videoHeight = 0;
+            return Error("Unable to create SDL2 movie texture");
+        }
+        SDL_SetTextureScaleMode(s_videoTexture, SDL_ScaleModeLinear);
+        s_videoWidth = frame->width;
+        s_videoHeight = frame->height;
+    }
+    if (SDL_UpdateYUVTexture(s_videoTexture, NULL, frame->y, (int)frame->y_pitch, frame->u,
+                             (int)frame->uv_pitch, frame->v, (int)frame->uv_pitch) != 0)
+        return Error("Unable to upload SDL2 movie frame");
+    SDL_SetTextureColorMod(s_videoTexture, frame->brightness, frame->brightness, frame->brightness);
+    int width, height;
+    if (SDL_GetRendererOutputSize(s_renderer, &width, &height) != 0)
+        return Error("Unable to query SDL2 render dimensions");
+    SDL_Rect src = {0, 0, (int)frame->width, (int)frame->height};
+    SDL_Rect dst;
+    if (frame->fill_display) {
+        dst.x = dst.y = 0;
+        dst.w = width;
+        dst.h = height;
+        if ((double)frame->width * height > (double)frame->height * width) {
+            src.w = (int)((double)frame->height * width / height);
+            src.x = ((int)frame->width - src.w) / 2;
+        } else {
+            src.h = (int)((double)frame->width * height / width);
+            src.y = ((int)frame->height - src.h) / 2;
+        }
+    } else {
+        const SDL_Rect area = Viewport(width, height);
+        dst.x = area.x + (int)((double)frame->dst_x * area.w / s_width);
+        dst.y = area.y + (int)((double)frame->dst_y * area.h / s_height);
+        dst.w = (int)((double)frame->dst_w * area.w / s_width);
+        dst.h = (int)((double)frame->dst_h * area.h / s_height);
+    }
+    if (SDL_SetRenderDrawColor(s_renderer, 0, 0, 0, 255) != 0 || SDL_RenderClear(s_renderer) != 0 ||
+        SDL_RenderCopy(s_renderer, s_videoTexture, &src, &dst) != 0)
+        return Error("Unable to present SDL2 movie frame");
+    SDL_RenderPresent(s_renderer);
+    return true;
 }

@@ -7,16 +7,31 @@ static U32 s_held = 0;
 static U32 s_input = 0;
 static U32 s_suppressed = 0;
 static S32 s_replaySample = -1;
+static S32 s_rightStick = 0;
+
+void MenuInput_UseRightStick(S32 on) {
+#if defined(LBA2_MODERN_PAD_DEFAULT) && LBA2_MODERN_PAD_DEFAULT
+    s_rightStick = on ? 1 : 0;
+#else
+    (void)on;
+#endif
+}
+
+S32 MenuInput_RightStickOn(void) {
+    return s_rightStick;
+}
 
 U32 MenuInput_Capture(S32 isolated, U32 reservedKey) {
-    static const U32 keys[MENU_INPUT_COUNT][4] = {
-        {K_UP, K_NUMPAD_8, K_GAMEPAD_LSTICK_UP, K_GAMEPAD_DPAD_UP},
-        {K_DOWN, K_NUMPAD_2, K_GAMEPAD_LSTICK_DOWN, K_GAMEPAD_DPAD_DOWN},
-        {K_LEFT, K_NUMPAD_4, K_GAMEPAD_LSTICK_LEFT, K_GAMEPAD_DPAD_LEFT},
-        {K_RIGHT, K_NUMPAD_6, K_GAMEPAD_LSTICK_RIGHT, K_GAMEPAD_DPAD_RIGHT}};
+    /* The last column is the right stick, read only while a menu asks for it. */
+    static const U32 keys[MENU_INPUT_COUNT][5] = {
+        {K_UP, K_NUMPAD_8, K_GAMEPAD_LSTICK_UP, K_GAMEPAD_DPAD_UP, K_GAMEPAD_RSTICK_UP},
+        {K_DOWN, K_NUMPAD_2, K_GAMEPAD_LSTICK_DOWN, K_GAMEPAD_DPAD_DOWN, K_GAMEPAD_RSTICK_DOWN},
+        {K_LEFT, K_NUMPAD_4, K_GAMEPAD_LSTICK_LEFT, K_GAMEPAD_DPAD_LEFT, K_GAMEPAD_RSTICK_LEFT},
+        {K_RIGHT, K_NUMPAD_6, K_GAMEPAD_LSTICK_RIGHT, K_GAMEPAD_DPAD_RIGHT, K_GAMEPAD_RSTICK_RIGHT}};
+    const S32 columns = s_rightStick ? 5 : 4;
     U32 sample = isolated ? MENU_INPUT_ISOLATED : 0;
     for (S32 direction = 0; direction < MENU_INPUT_COUNT; ++direction)
-        for (S32 key = 0; key < 4; ++key)
+        for (S32 key = 0; key < columns; ++key)
             if (keys[direction][key] != reservedKey && CheckKey(keys[direction][key]))
                 sample |= 1u << direction;
     return sample;

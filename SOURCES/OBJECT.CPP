@@ -23,7 +23,11 @@
 #include <SYSTEM/KEYBOARD_KEYS.H>
 #include <stdint.h>
 #include "AMBIANCE.H"
-#include "ANALOGMOVE.H" /* the left stick walking Twinsen the way it points */
+#include "ANALOGMOVE.H"   /* the left stick walking Twinsen the way it points */
+#include "ACTIONHINT.H"   /* the A button shown in a zone the action button works in */
+#include "COMBATASSIST.H" /* CombatAssist: counter a knock-back, a moment free of the next */
+#include "VIDEOTECA.H"
+#include <PLATFORM/PLATFORM.H>
 
 extern S32 FlagAnimWhoSpeak; // MESSAGE.CPP
 
@@ -1168,6 +1172,10 @@ void ChangeCube() {
     T_OBJET *ptrobj = &ListObjet[NUM_PERSO];
     S32 oldcube;
     S32 flagload;
+    /* How long each step of the change takes, for the log (a stall here is
+       what a player feels as the game catching on a scene change). */
+    const U32 tStart = (U32)g_platform.system.ticks_ms();
+    U32 tScene, tGrid;
 
     APtObj = ptrobj;
 
@@ -1248,6 +1256,7 @@ void ChangeCube() {
 
     // lance usine
     LoadScene(NewCube);
+    tScene = (U32)g_platform.system.ticks_ms();
 
     /* CubeMode is only known once the scene header is parsed, and the buffers
        resized here have to be in place before InitGrille fills them below. */
@@ -1267,6 +1276,7 @@ void ChangeCube() {
     // load gri
 
     PtrInitGrille(NewCube); /*	HQR	*/
+    tGrid = (U32)g_platform.system.ticks_ms();
 
     ManageSystem(); // for streaming
 
@@ -1425,6 +1435,7 @@ void ChangeCube() {
 
         if (flagload != LOADGAME_ERR_CONTEXT) {
             CheckProtoPack();
+            Videoteca_NoteSeenFromSave();
         }
 
         NewCube = -1;
@@ -1454,6 +1465,13 @@ void ChangeCube() {
 
     LastValidePos = ValidePos = FALSE;
     ptrobj->CarryBy = -1;
+
+    {
+        const U32 tEnd = (U32)g_platform.system.ticks_ms();
+        Log_Info("[timing] cube %d -> %d: scene %u ms, island/grid %u ms, the rest %u ms, total %u ms", (int)oldcube,
+                 (int)NumCube, (unsigned)(tScene - tStart), (unsigned)(tGrid - tScene), (unsigned)(tEnd - tGrid),
+                 (unsigned)(tEnd - tStart));
+    }
 }
 
 /*══════════════════════════════════════════════════════════════════════════*
@@ -1486,6 +1504,25 @@ void InitHitExtraPof(S32 x, S32 y, S32 z, S32 hitforce) {
 
 //▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 /*──────────────────────────────────────────────────────────────────────────*/
+S32 CombatAssist = LBA2_COMBAT_ASSIST_DEFAULT;
+
+/* When Twinsen's last knock-back started (TimerRefHR), for CombatAssist. */
+static U32 s_heroKnockMs = 0;
+static S32 s_heroKnocked = FALSE;
+
+/* Whether a hit landing on Twinsen now may knock him back: always, unless
+ * CombatAssist is on and one already did a moment ago. */
+static S32 HeroMayBeKnocked(void) {
+    if (!CombatAssist OR !s_heroKnocked)
+        return TRUE;
+    return (U32)(TimerRefHR - s_heroKnockMs) >= COMBAT_ASSIST_GRACE_MS;
+}
+
+static void HeroKnocked(void) {
+    s_heroKnockMs = TimerRefHR;
+    s_heroKnocked = TRUE;
+}
+
 void HitObj(U8 numhitter, U8 num, S32 hitforce, S32 beta) {
     S32 memo;
     T_OBJET *ptrobjt;
@@ -1529,7 +1566,7 @@ void HitObj(U8 numhitter, U8 num, S32 hitforce, S32 beta) {
                 GereAnimAction(ptrobjt, num);
             }
             ptrobjt->Obj.LastFrame = memo;
-        } else {
+        } else if (num != NUM_PERSO OR HeroMayBeKnocked()) {
             if ((beta != -1)
                     AND !(ptrobjt->WorkFlags & TRACK_MASTER_ROT)) {
                 InitBoundAngleMove(&ptrobjt->BoundAngle,
@@ -1542,6 +1579,8 @@ void HitObj(U8 numhitter, U8 num, S32 hitforce, S32 beta) {
                 InitAnim(GEN_ANIM_CHOC, ANIM_ALL_THEN, num);
             else
                 InitAnim(GEN_ANIM_CHOC2, ANIM_ALL_THEN, num);
+            if (num == NUM_PERSO)
+                HeroKnocked();
         }
 
         /* effet special choc */
@@ -1570,8 +1609,10 @@ void HitObj(U8 numhitter, U8 num, S32 hitforce, S32 beta) {
                 GereAnimAction(ptrobjt, num);
             }
             ptrobjt->Obj.LastFrame = memo;
-        } else {
+        } else if (num != NUM_PERSO OR HeroMayBeKnocked()) {
             InitAnim(GEN_ANIM_ENCAISSE, ANIM_ALL_THEN, num);
+            if (num == NUM_PERSO)
+                HeroKnocked();
         }
     }
 }
@@ -4037,6 +4078,148 @@ TRACK_ATTACK
 #define HEIGHT_JETPACK 543
 
 //▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+/* The facing, nearest his own, from which Twinsen standing in ladder zone
+ * `ptrz` would find the wall to climb in front of him, by the ladder zone's own
+ * test in CheckZoneSce; -1 when there is none, or he is at the top already. */
+static S32 ClimbWallBeta(T_OBJET *ptrobj, T_ZONE *ptrz) {
+    S32 best = -1;
+    S32 bestDiff = 4096;
+    S32 n;
+
+    if (ptrobj->Obj.Y > ptrz->Y1 - 256)
+        return -1;
+    for (n = 0; n < 16; n++) {
+        S32 beta = n * 256;
+        S32 diff;
+        S32 x0, z0;
+
+        Rotate(ptrobj->XMin, ptrobj->ZMin, beta + (896 * MUL_ANGLE) + (512 * MUL_ANGLE));
+        x0 = X0 + ptrobj->Obj.X;
+        z0 = Z0 + ptrobj->Obj.Z;
+        if (x0 < 0 OR z0 < 0 OR x0 > 64 * SIZE_BRICK_XZ - 1 OR z0 > 64 * SIZE_BRICK_XZ - 1)
+            continue;
+        if (PtrWorldColBrick(x0, ptrobj->Obj.Y + 256, z0) == 0)
+            continue;
+        diff = AnalogMove_AngleDiff(ptrobj->Obj.Beta & 4095, beta);
+        if (diff < 0)
+            diff = -diff;
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            best = beta;
+        }
+    }
+    return best;
+}
+
+/* At a ladder or a window he can climb in through, the action hint says
+ * "climb", and the action button turns him to the wall and starts the climb in
+ * place of the action it would do there. TRUE when it took this frame's input. */
+static S32 ClimbByAction(T_OBJET *ptrobj) {
+    S32 wall;
+
+    if (!GamepadActionHint OR PtrZoneClimb == NULL OR FlagClimbing OR CinemaMode OR ptrobj->FlagAnim == ANIM_ALL_THEN OR(ptrobj->WorkFlags & (FALLING | ANIM_MASTER_GRAVITY)))
+        return FALSE;
+    wall = ClimbWallBeta(ptrobj, PtrZoneClimb);
+    if (wall < 0)
+        return FALSE;
+    ActionHint_NoteLabel((U32)g_platform.system.ticks_ms(),
+                         Language == 3 ? ACTION_HINT_LABEL_CLIMB_ES : ACTION_HINT_LABEL_CLIMB_EN);
+    if (!(Input & I_ACTION_ALWAYS))
+        return FALSE;
+    ptrobj->Obj.Beta = wall;
+    Input &= ~(I_ACTION_ALWAYS | I_JOY);
+    Input |= I_UP;
+    return TRUE;
+}
+
+/* The facing from which Twinsen at the top of ladder zone `ptrz` looks down
+ * it: the nearest to his own with no floor just in front of his feet while there
+ * is floor under them. -1 when there is none, or he is not at the top. */
+static S32 DescendHoleBeta(T_OBJET *ptrobj, T_ZONE *ptrz) {
+    S32 best = -1;
+    S32 bestDiff = 4096;
+    S32 n;
+
+    if (ptrobj->Obj.Y <= ptrz->Y1 - 256)
+        return -1;
+    if (PtrWorldColBrick(ptrobj->Obj.X, ptrobj->Obj.Y - 128, ptrobj->Obj.Z) == 0)
+        return -1;
+    for (n = 0; n < 16; n++) {
+        S32 beta = n * 256;
+        S32 diff;
+        S32 x0, z0;
+
+        Rotate(ptrobj->XMin, ptrobj->ZMin, beta + (896 * MUL_ANGLE) + (512 * MUL_ANGLE));
+        x0 = X0 + ptrobj->Obj.X;
+        z0 = Z0 + ptrobj->Obj.Z;
+        if (x0 < 0 OR z0 < 0 OR x0 > 64 * SIZE_BRICK_XZ - 1 OR z0 > 64 * SIZE_BRICK_XZ - 1)
+            continue;
+        if (PtrWorldColBrick(x0, ptrobj->Obj.Y - 128, z0) != 0)
+            continue;
+        diff = AnalogMove_AngleDiff(ptrobj->Obj.Beta & 4095, beta);
+        if (diff < 0)
+            diff = -diff;
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            best = beta;
+        }
+    }
+    return best;
+}
+
+/* How long a started descent keeps backing him toward the ladder (TimerRefHR
+ * ms) before it gives up, and how far off the hole the stick may point to count
+ * as walking at it. */
+#define DESCEND_HOLD_MS 1500
+#define DESCEND_STICK_CONE 512
+
+static S32 s_descending = FALSE;
+static U32 s_descendMs = 0;
+
+/* At the top of a ladder the original only goes down walking backwards into it,
+ * and walking at it facing it falls instead. Here the action hint says "down",
+ * and the action button, or the left stick pointed at the ladder, turns him with
+ * his back to it and backs him onto it, which the ladder zone's own descent in
+ * CheckZoneSce then takes over. TRUE when it took this frame's input. */
+static S32 DescendByAction(T_OBJET *ptrobj) {
+    S32 hole;
+    S32 stick;
+
+    if (!GamepadActionHint OR PtrZoneClimb == NULL OR FlagClimbing OR CinemaMode OR ptrobj->FlagAnim == ANIM_ALL_THEN OR(ptrobj->WorkFlags & (FALLING | ANIM_MASTER_GRAVITY))) {
+        s_descending = FALSE;
+        return FALSE;
+    }
+    if (s_descending) {
+        if ((U32)(TimerRefHR - s_descendMs) > DESCEND_HOLD_MS) {
+            s_descending = FALSE;
+            return FALSE;
+        }
+        Input &= ~(I_ACTION_ALWAYS | I_JOY);
+        Input |= I_DOWN;
+        return TRUE;
+    }
+    hole = DescendHoleBeta(ptrobj, PtrZoneClimb);
+    if (hole < 0)
+        return FALSE;
+    ActionHint_NoteLabel((U32)g_platform.system.ticks_ms(),
+                         Language == 3 ? ACTION_HINT_LABEL_DESCEND_ES : ACTION_HINT_LABEL_DESCEND_EN);
+    stick = AnalogMove_StickTarget(CubeMode == CUBE_EXTERIEUR, BetaCam);
+    if (!(Input & I_ACTION_ALWAYS)) {
+        S32 diff;
+        if (stick < 0)
+            return FALSE;
+        diff = AnalogMove_AngleDiff(stick, hole);
+        if (diff > DESCEND_STICK_CONE OR diff < -DESCEND_STICK_CONE)
+            return FALSE;
+    }
+    ptrobj->Obj.Beta = (hole + 2048) & 4095;
+    s_descending = TRUE;
+    s_descendMs = TimerRefHR;
+    Input &= ~(I_ACTION_ALWAYS | I_JOY);
+    Input |= I_DOWN;
+    return TRUE;
+}
+
 void DoDir(U8 numobj) {
     T_OBJET *ptrobj;
     S32 info3;
@@ -4074,13 +4257,14 @@ void DoDir(U8 numobj) {
         /*-------------------------------------------------------------------------*/
     case MOVE_MANUAL:
 
-        if (numobj == NUM_PERSO) {
+        if (numobj == NUM_PERSO AND !ClimbByAction(ptrobj) AND !DescendByAction(ptrobj)) {
             /* Mid-jump and during an animation that rotates him, the tank
                controls leave his facing alone too. */
             AnalogMove_Apply(&ptrobj->Obj.Beta,
                              !(Jumping & 1023) AND !(ptrobj->WorkFlags & ANIM_MASTER_ROT),
                              CubeMode == CUBE_EXTERIEUR,
-                             FlagClimbing OR PtrZoneClimb != NULL,
+                             FlagClimbing,
+                             PtrZoneClimb != NULL,
                              BetaCam,
                              ManualCameraOrbitActive);
         }
@@ -4141,6 +4325,12 @@ void DoDir(U8 numobj) {
                 break;
 
             case C_AGRESSIF:
+                /* CombatAssist: a fresh press during a knock-back cuts it short,
+                   so the blow below can start this frame. */
+                if (CombatAssist AND(Input & I_ACTION_M) AND !(LastInput & I_ACTION_M)
+                        AND ptrobj->FlagAnim == ANIM_ALL_THEN AND ptrobj->LifePoint > 0 AND(ptrobj->GenAnim == GEN_ANIM_CHOC OR ptrobj->GenAnim == GEN_ANIM_CHOC2 OR ptrobj->GenAnim == GEN_ANIM_ENCAISSE)) {
+                    ptrobj->FlagAnim = ANIM_REPEAT;
+                }
                 if (Input & I_ACTION_M) {
                     LastJoyFlag = TRUE;
                     /* essai control direction pendant combat */
@@ -4559,6 +4749,9 @@ void DoDir(U8 numobj) {
 
         /*-------------------------------------------------------------------------*/
     case MOVE_BUGGY_MANUAL:
+        if (numobj == NUM_PERSO)
+            AnalogMove_ApplyBuggy();
+
         if ((Input & I_ACTION_M)
                 AND !(ptrobj->WorkFlags & ANIM_MASTER_GRAVITY)) {
             ActionNormal = 2; // Action Buggy pour en descendre
@@ -6276,7 +6469,10 @@ startaffscene:
         // crossings, Life-script CHANGE_CUBE, and the phantom teleport -- never
         // by console warps or menu loads, so those don't clobber the autosave.
         if (NumCube != NUM_CUBE_PHANTOM) {
+            const U32 tSave = (U32)g_platform.system.ticks_ms();
             AutoSaveGame();
+            Log_Info("[timing] autosave %u ms (the card write itself runs in the background where it can)",
+                     (unsigned)((U32)g_platform.system.ticks_ms() - tSave));
         }
 
         FlagChgCube = 0;
@@ -6684,6 +6880,8 @@ void CheckZoneSce(T_OBJET *ptrobj, U8 numobj) {
 
             case 4: // zone giver
                 if (numobj == NUM_PERSO) {
+                    if (!ptrz->Info2 AND !CinemaMode) /* not yet taken: the A button would give it */
+                        ActionHint_Note((U32)g_platform.system.ticks_ms());
                     if (ActionNormal == 1) {
                         InitAnim(GEN_ANIM_ACTION, ANIM_ALL_THEN, NUM_PERSO);
                         ZoneGiveExtraBonus(ptrz);
@@ -6694,6 +6892,8 @@ void CheckZoneSce(T_OBJET *ptrobj, U8 numobj) {
 
             case 5: // zone message
                 if (numobj == NUM_PERSO) {
+                    if (!CinemaMode)
+                        ActionHint_Note((U32)g_platform.system.ticks_ms());
                     GereZoneMessage(ptrobj, ptrz);
                 }
                 break;

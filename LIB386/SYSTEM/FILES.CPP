@@ -4,6 +4,7 @@
 #include <SYSTEM/LIMITS.H>
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -11,6 +12,15 @@
 #include <sys/stat.h>
 #include <utime.h>
 #include <unistd.h>
+#include <stdlib.h>
+
+#ifdef __SWITCH__
+#include <pthread.h>
+/* On the Switch the game data sits on the SD card, slow to seek and read in
+   small pieces, and a save written there stalls the frame that writes it. */
+#define LBA2_FILE_RAM_CACHE 1
+#define LBA2_BACKGROUND_WRITE 1
+#endif
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -39,6 +49,213 @@ S32 OpenMode(const char *filename, int mode) {
     return (handle == -1) ? 0 : handle;
 }
 
+// --- Game data kept in memory (Switch) ---------------------------------------
+// A scene change reads the scene, the island, the bricks, bodies, animations and
+// sounds out of the .HQR / .ILE / .OBL files in many small reads. Each such file
+// (up to RAM_CACHE_MAX_FILE bytes, so not the movies) is read whole the first
+// time it is opened and kept, and every later open reads the copy.
+#ifdef LBA2_FILE_RAM_CACHE
+#define RAM_HANDLE_BASE 0x50000000
+#define RAM_MAX_FILES 64
+#define RAM_MAX_HANDLES 32
+#define RAM_CACHE_MAX_FILE (16u * 1024u * 1024u)
+
+typedef struct {
+    char *path;
+    U8 *data;
+    U32 size;
+} RamFile;
+typedef struct {
+    int file; /* index in s_ramFiles, -1 free */
+    U32 pos;
+} RamHandle;
+static RamFile s_ramFiles[RAM_MAX_FILES];
+static int s_ramFileCount = 0;
+static RamHandle s_ramHandles[RAM_MAX_HANDLES];
+static int s_ramHandlesReady = 0;
+
+static int RamCacheWanted(const char *filename) {
+    const char *dot = strrchr(filename, '.');
+    char ext[5];
+    int i;
+    if (dot == NULL || strlen(dot) != 4)
+        return 0;
+    for (i = 0; i < 4; i++)
+        ext[i] = (char)toupper((unsigned char)dot[i]);
+    ext[4] = 0;
+    return !strcmp(ext, ".HQR") || !strcmp(ext, ".ILE") || !strcmp(ext, ".OBL");
+}
+
+static int RamIsHandle(S32 handle) { return handle >= RAM_HANDLE_BASE && handle < RAM_HANDLE_BASE + RAM_MAX_HANDLES; }
+
+static int RamFind(const char *filename) {
+    int i;
+    for (i = 0; i < s_ramFileCount; i++)
+        if (!strcmp(s_ramFiles[i].path, filename))
+            return i;
+    return -1;
+}
+
+/* The file read whole into memory, or -1 to read it from the card as usual. */
+static int RamLoad(const char *filename) {
+    struct stat st;
+    U8 *data;
+    char *path;
+    U32 got = 0;
+    int fd;
+
+    if (s_ramFileCount >= RAM_MAX_FILES || stat(filename, &st) != 0 || st.st_size <= 0 ||
+        (unsigned long long)st.st_size > RAM_CACHE_MAX_FILE)
+        return -1;
+    data = (U8 *)malloc((size_t)st.st_size);
+    path = (char *)malloc(strlen(filename) + 1);
+    fd = open(filename, MODE_READ);
+    if (data == NULL || path == NULL || fd == -1) {
+        free(data);
+        free(path);
+        if (fd != -1)
+            close(fd);
+        return -1;
+    }
+    while (got < (U32)st.st_size) {
+        const ssize_t n = read(fd, data + got, (size_t)st.st_size - got);
+        if (n <= 0)
+            break;
+        got += (U32)n;
+    }
+    close(fd);
+    if (got != (U32)st.st_size) {
+        free(data);
+        free(path);
+        return -1;
+    }
+    strcpy(path, filename);
+    s_ramFiles[s_ramFileCount].path = path;
+    s_ramFiles[s_ramFileCount].data = data;
+    s_ramFiles[s_ramFileCount].size = got;
+    return s_ramFileCount++;
+}
+
+static S32 RamOpen(const char *filename) {
+    int file, h;
+    if (!RamCacheWanted(filename))
+        return 0;
+    if (!s_ramHandlesReady) {
+        for (h = 0; h < RAM_MAX_HANDLES; h++)
+            s_ramHandles[h].file = -1;
+        s_ramHandlesReady = 1;
+    }
+    file = RamFind(filename);
+    if (file < 0)
+        file = RamLoad(filename);
+    if (file < 0)
+        return 0;
+    for (h = 0; h < RAM_MAX_HANDLES; h++) {
+        if (s_ramHandles[h].file < 0) {
+            s_ramHandles[h].file = file;
+            s_ramHandles[h].pos = 0;
+            return RAM_HANDLE_BASE + h;
+        }
+    }
+    return 0;
+}
+
+static S32 RamRead(S32 handle, void *buffer, U32 maxReadBytes) {
+    RamHandle *h = &s_ramHandles[handle - RAM_HANDLE_BASE];
+    const RamFile *f = &s_ramFiles[h->file];
+    U32 n = h->pos >= f->size ? 0 : f->size - h->pos;
+    if (n > maxReadBytes)
+        n = maxReadBytes;
+    memcpy(buffer, f->data + h->pos, n);
+    h->pos += n;
+    return (S32)n;
+}
+
+static S32 RamSeek(S32 handle, S32 offset, ESeekOrigin origin) {
+    RamHandle *h = &s_ramHandles[handle - RAM_HANDLE_BASE];
+    const S32 size = (S32)s_ramFiles[h->file].size;
+    S32 pos = offset;
+    if (origin == SEEK_FROM_CURRENT)
+        pos = (S32)h->pos + offset;
+    else if (origin == SEEK_FROM_END)
+        pos = size + offset;
+    if (pos < 0)
+        return -1;
+    h->pos = (U32)pos;
+    return pos;
+}
+#endif
+
+// --- Saves written in the background (Switch) --------------------------------
+#ifdef LBA2_BACKGROUND_WRITE
+static pthread_t s_bgThread;
+static int s_bgActive = 0;
+static char s_bgPath[ADELINE_MAX_PATH];
+static void *s_bgData = NULL;
+static U32 s_bgSize = 0;
+
+static void *BackgroundWriter(void *unused) {
+    (void)unused;
+    const int fd = open(s_bgPath, MODE_WRITE, (S_IRUSR | S_IWUSR));
+    if (fd != -1) {
+        U32 done = 0;
+        while (done < s_bgSize) {
+            const ssize_t n = write(fd, (const U8 *)s_bgData + done, s_bgSize - done);
+            if (n <= 0)
+                break;
+            done += (U32)n;
+        }
+        close(fd);
+    }
+    return NULL;
+}
+#endif
+
+void WaitBackgroundWrites(void) {
+#ifdef LBA2_BACKGROUND_WRITE
+    if (s_bgActive) {
+        pthread_join(s_bgThread, NULL);
+        s_bgActive = 0;
+        free(s_bgData);
+        s_bgData = NULL;
+    }
+#endif
+}
+
+S32 WriteFileInBackground(const char *filename, const void *buffer, U32 size) {
+#ifdef LBA2_BACKGROUND_WRITE
+    static int s_atExit = 0;
+    void *copy;
+    WaitBackgroundWrites();
+    copy = malloc(size ? size : 1);
+    if (copy != NULL && strlen(filename) < sizeof(s_bgPath)) {
+        memcpy(copy, buffer, size);
+        strcpy(s_bgPath, filename);
+        s_bgData = copy;
+        s_bgSize = size;
+        if (pthread_create(&s_bgThread, NULL, BackgroundWriter, NULL) == 0) {
+            s_bgActive = 1;
+            if (!s_atExit) {
+                atexit(WaitBackgroundWrites);
+                s_atExit = 1;
+            }
+            return 1;
+        }
+        s_bgData = NULL;
+    }
+    free(copy);
+#endif
+    {
+        const S32 handle = OpenWrite(filename);
+        S32 written = 0;
+        if (!handle)
+            return 0;
+        written = Write(handle, buffer, size);
+        Close(handle);
+        return written == (S32)size;
+    }
+}
+
 // --- Public functions --------------------------------------------------------
 // OpenRead resolves the filesystem first, then falls back to a mounted disc
 // image (DiscImage_OpenRead returns 0 when nothing is mounted or the file is
@@ -46,16 +263,36 @@ S32 OpenMode(const char *filename, int mode) {
 // The disc handle it returns is tagged; Read/Seek/Close dispatch on it. Writes
 // never touch the image.
 S32 OpenRead(const char *filename) {
+    WaitBackgroundWrites(); /* never read a save half written */
+#ifdef LBA2_FILE_RAM_CACHE
+    {
+        const S32 ram = RamOpen(filename);
+        if (ram)
+            return ram;
+    }
+#endif
     S32 handle = OpenMode(filename, MODE_READ);
     if (handle) {
         return handle;
     }
     return DiscImage_OpenRead(filename);
 }
-S32 OpenWrite(const char *filename) { return OpenMode(filename, MODE_WRITE); }
-S32 OpenReadWrite(const char *filename) { return OpenMode(filename, MODE_RW); }
+S32 OpenWrite(const char *filename) {
+    WaitBackgroundWrites();
+    return OpenMode(filename, MODE_WRITE);
+}
+S32 OpenReadWrite(const char *filename) {
+    WaitBackgroundWrites();
+    return OpenMode(filename, MODE_RW);
+}
 
 S32 Close(S32 handle) {
+#ifdef LBA2_FILE_RAM_CACHE
+    if (RamIsHandle(handle)) {
+        s_ramHandles[handle - RAM_HANDLE_BASE].file = -1;
+        return 0;
+    }
+#endif
     if (DiscImage_IsHandle(handle)) {
         return DiscImage_Close(handle);
     }
@@ -64,6 +301,10 @@ S32 Close(S32 handle) {
 }
 
 S32 Read(S32 handle, void *buffer, U32 maxReadBytes) {
+#ifdef LBA2_FILE_RAM_CACHE
+    if (RamIsHandle(handle))
+        return RamRead(handle, buffer, maxReadBytes);
+#endif
     if (DiscImage_IsHandle(handle)) {
         return DiscImage_Read(handle, buffer, maxReadBytes);
     }
@@ -79,6 +320,10 @@ S32 Write(S32 handle, const void *buffer, U32 maxWriteBytes) {
 }
 
 S32 Seek(S32 handle, S32 offset, ESeekOrigin origin) {
+#ifdef LBA2_FILE_RAM_CACHE
+    if (RamIsHandle(handle))
+        return RamSeek(handle, offset, origin);
+#endif
     if (DiscImage_IsHandle(handle)) {
         return DiscImage_Seek(handle, offset, (S32)origin);
     }

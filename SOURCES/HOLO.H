@@ -214,6 +214,9 @@ extern void ScaleRotAnim3D(U8 *ptanim, S32 scale, S32 flagrot);
 extern U32 GetSizeAnim3D(U8 *ptanim);
 extern void InitAngleArrow(void);
 extern void HoloPlan(S32 numplan);
+/* Whether Twinsen knows `island` (he is on it, or a cube of it is marked on
+   the holomap), so its map can be looked at. */
+extern S32 HoloPlan_IslandKnown(S32 island);
 
 extern void AffUpperLeft(S32 x, S32 y, S32 flag);
 extern void AffLowerLeft(S32 x, S32 y, S32 flag);

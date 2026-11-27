@@ -4,6 +4,7 @@
 
 #include "C_EXTERN.H" // include LBA2
 #include "DIRECTORIES.H"
+#include "HOLOHD.H"
 #include "INPUT.H"
 #include "MENU_INPUT.H"
 #include "UI_LAYOUT.H" /* UI_VCENTER_OFS */
@@ -11,6 +12,7 @@
 #include <FILEIO/SAVEPNG.H>
 #include <SVGA/SCREEN.H>
 #include <SYSTEM/KEYBOARD_KEYS.H>
+#include <stdio.h>
 #include <string.h>
 #include "AMBIANCE.H"
 #include "BOOT_EXIT.H"
@@ -859,6 +861,9 @@ void InitHoloGlobe(S32 planet) {
     PtrAlt = (U8 *)LoadHoloMalloc_HQR(tmpFilePath, id); // .HMT
 
     PtrTextMap = (U8 *)LoadHoloMalloc_HQR(tmpFilePath, id + 1); // .HMG
+    /* A redrawn surface in the hd folder, if there is one. */
+    if (PtrTextMap != NULL)
+        HoloHD_ReplaceTexture(id + 1, PtrTextMap, HQF_ResSize(tmpFilePath, id + 1), PtrPal);
 
     RayonPlanet = RAYON_PLANET;
 
@@ -1080,13 +1085,18 @@ void HoloGlobe(S32 planet) {
 
                 if (((Input == I_ACTION_M) OR(Input == I_RETURN)) // espace
                     AND(!FlagMap)) {
-                    //					If the player can or cannot Zoom an other island...
-                    if ((NumObjectif == 1000)     //	Twinsen
-                        OR(NumObjectif == Island) //	Ile de Twinsen
-                        OR(NumObjectif == -1))    //	Dans la Nature
-                    {
+                    /* Any island Twinsen knows can be looked at (the original
+                       only opened his own); the map is only to look, he stays put. */
+                    S32 target = Island;
+                    if (NumObjectif >= 0 AND NumObjectif < MAX_ISLAND)
+                        target = NumObjectif;
+                    else if (NumObjectif >= MAX_OBJECTIF AND NumObjectif < MAX_OBJECTIF + MAX_CUBE)
+                        target = TabArrow[NumObjectif].Island;
+                    if ((NumObjectif == 1000) //	Twinsen
+                        OR(NumObjectif == -1) //	Dans la Nature
+                        OR HoloPlan_IslandKnown(target)) {
                         FlagMap = 1;
-                        ZoomedIsland = Island;
+                        ZoomedIsland = target;
                         FindAngleIsland(ZoomedIsland);
                         MemoTimerRot = TimerRefHR;
                     } else //				Sur une autre Ile...
@@ -1102,6 +1112,8 @@ void HoloGlobe(S32 planet) {
         //----------------------------------------------------------------------------
         if (FlagMap == 1) {
             if (GoToArrow()) {
+                /* The globe fades out; the map fades in (HoloPlan). */
+                FadeToBlack(PtrPal);
                 ClearHoloGlobe();
                 HoloPlan(ZoomedIsland);
                 if (FlagHoloEnd)

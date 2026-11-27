@@ -345,6 +345,10 @@ bool Uwp_SetPresentFilter(PlatformPresentFilter mode) {
     return true;
 }
 
+bool Uwp_PresentVideo(const PlatformVideoFrame *) {
+    return Uwp_Fail("UWP presentation shows indexed frames only");
+}
+
 bool Uwp_Present(const PlatformFrame *frame) {
     if (!frame || !s_frameW || frame->width != s_frameW || frame->height != s_frameH)
         return Uwp_Fail("Indexed frame does not match the UWP presentation surface");

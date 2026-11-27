@@ -26,12 +26,12 @@ These work outdoors with the Auto camera on.
 
 Tilt and the quarter turn can be rebound in Options → Keyboard; the orbit and zoom keys are fixed. Mouse and stick sensitivity, inversion and the dead zone are in [CONTROLLER.md](CONTROLLER.md).
 
-The zoom is not saved: it starts at the middle distance in every session, and Enter puts it back there.
+The zoom is saved in `lba2.cfg` as `FollowCamDistance` (`cam_distance`; 0, the default, is the middle distance), so it holds from one scene and one session to the next. Enter puts it back at the middle distance, except in a build with `LBA2_MODERN_GAMEPAD` (the Switch build), where Center camera keeps the zoom you chose.
 
 ## What the Auto camera does
 
 - **It holds its direction when Twinsen turns.** Turning on the spot, or a boat turning under him, does not swing the camera round. As he walks it comes back behind him, sooner the faster he goes, and stops exactly behind him. With `cam_world_anchor 0` it comes round behind him as he turns instead, in about a second, the pace of the 2022 Classic release's auto camera.
-- **The angle you set.** Orbit the camera and it stays there for a moment, then comes back behind Twinsen as he walks. With `cam_hold_angle 1` it stays until you press Enter.
+- **The angle you set.** Orbit the camera and it stays there for a moment, then comes back behind Twinsen as he walks. With `cam_hold_angle 1` (the default in the Switch build, where the left stick moves Twinsen relative to the camera) it stays until you press Enter.
 - **The view trails Twinsen** a little while he runs and settles after he stops.
 - **Scripted camera shots.** Many outdoor places have a camera shot placed by the game's designers. A shot that holds the view takes it while Twinsen is inside its area, gliding in and out rather than cutting. When he leaves, the camera eases back to the angle and tilt you had before. Shots that only fire once do not take the view while you are steering.
 - **Signs.** A sign that shows a place shows that view as soon as its text opens. When you close it, the camera glides back to Twinsen.
@@ -49,7 +49,9 @@ When a default changes, an `lba2.cfg` written by an earlier version moves to it 
 | Console | `lba2.cfg` key | Default | What it does | Off gives |
 | --- | --- | --- | --- | --- |
 | `cam_follow` | `FollowCamera` | 0 | The Auto camera itself | the classic camera |
-| `cam_hold_angle` | `FollowCamHoldAngle` | 0 | 1: keeps the angle you orbit to until you press Enter | comes back behind Twinsen as he walks |
+| `cam_hold_angle` | `FollowCamHoldAngle` | 0 (1 with `LBA2_MODERN_GAMEPAD`, as on Switch) | 1: keeps the angle you orbit to until you press Enter | comes back behind Twinsen as he walks |
+| `cam_collide` | `FollowCamCollide` | 0 (1 with `LBA2_MODERN_GAMEPAD`, as on Switch) | 1: with a building behind Twinsen the camera comes in at once, but never closer than three quarters of your zoom nor the closest zoom you can pick, and climbs briskly over what is left; it goes back out to your zoom when there is room | the view tilts down over the building instead |
+| `cam_distance` | `FollowCamDistance` | 0 | The zoom you chose, kept between sessions; 0 is the middle distance | the zoom starts at the middle distance every session |
 | `cam_ease_ms` | `FollowCamEaseMs` | 300 | How quickly the camera comes round behind Twinsen, in milliseconds (600 is the earlier pace) | 0: the earlier per-frame follow, which can stop up to a degree short |
 | `cam_target_ms` | `FollowCamTargetMs` | 300 | How far the view trails Twinsen, in milliseconds | 0: the view pinned to him |
 | `cam_shot_blend_ms` | `FollowCamShotBlendMs` | 900 | Glide into and out of a scripted shot, in milliseconds (indoors too, with the interior follow) | 0: a cut |
@@ -91,3 +93,7 @@ Indoors the view is the original isometric one, and it moves only when Twinsen n
 - [CONSOLE.md](CONSOLE.md): the console, and `camtrace` for logging what the camera does.
 - [CONFIG.md](CONFIG.md): `lba2.cfg`.
 - [CAMERA_INTERNALS.md](CAMERA_INTERNALS.md): how it works, for contributors.
+
+## Tester readout (temporary)
+
+While a file named `tester_camara.txt` sits beside the game data (`sdmc:/lba2/` on the Switch), the top-left corner shows the outdoor Auto camera's height (`AlphaCam`, with `FOLLOW_CAM_ALPHA_MIN`..`MAX`), its chosen distance (`FollowCamBaseDist`, with `FOLLOW_CAM_DIST_MIN`..`MAX`), its turn (`AddBetaCam`) and the island and scene, so comfortable limits can be read off in play ([CAMHUD.CPP](../SOURCES/CAMHUD.CPP)). The file may also sit in the user folder (`sdmc:/switch/lba2cc/user/` on the Switch) or carry a doubled `.txt.txt`; it is looked for every few seconds until found, and `adeline.log` says where it was found or looked for. Where the Auto camera is not the one in use (a camera zone, an interior, a cutscene, or the Auto camera turned off) the readout says so in one line, with the island and scene. The Switch build's limits came from it: height 231..600 and distance 7550..20000 (`FOLLOW_CAM_ALPHA_MIN` and `FOLLOW_CAM_DIST_MIN` set in `SOURCES/CMakeLists.txt` under `LBA2_MODERN_GAMEPAD`), so the ground's edge does not show black at the screen's edge. It is meant to be removed once the limits are set.

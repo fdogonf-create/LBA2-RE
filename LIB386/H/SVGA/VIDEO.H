@@ -54,6 +54,10 @@ void SetPrePresentCallback(PrePresentFn fn);
  *  overlay. Same signature as PrePresentFn. */
 void SetOverlayPrePresentCallback(PrePresentFn fn);
 
+/** A full-colour picture presented in place of part of the frame (see
+ *  PlatformBackdrop), for every frame until it is set to NULL. Borrowed. */
+void SetPresentBackdrop(const PlatformBackdrop *backdrop);
+
 /** Optional timing taps around the present path (palette LUT scan + texture upload + GL submit + vsync wait).
     Both callbacks must be set together (or both NULL); called at most once per UnlockVideoSurface. */
 typedef void (*PresentTimingFn)(void);
