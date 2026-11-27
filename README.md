@@ -136,15 +136,24 @@ Todo se guarda solo en `sdmc:/switch/lba2cc/user/`.
 
 *Próximamente.*
 
-## Compilar desde el código
+## Compilar el juego
 
-Para compilar el `.nro` tú mismo solo necesitas Docker:
+### Requisitos
+
+- Para el `.nro` de Switch: solo Docker.
+- Para PC: CMake 3.23 o más nuevo, Ninja, un compilador de C/C++ con soporte de C++98 (GCC o Clang) y SDL3. GNU Make es opcional (atajos `make build`, `make run`).
+
+### Switch
+
+Para compilar el `.nro` tú mismo:
 
 ```bash
 bash scripts/dev/build-switch.sh
 ```
 
 Esto genera el `.nro` y el zip para la SD dentro de una imagen fija de devkitPro, sin instalar nada más. Cada cambio que se sube a GitHub también se compila solo en Actions. Los detalles técnicos están en [docs/SWITCH.md](docs/SWITCH.md), [docs/CONTROLLER.md](docs/CONTROLLER.md), [docs/CAMERA.md](docs/CAMERA.md) y [docs/GFX_OPTIONS.md](docs/GFX_OPTIONS.md).
+
+### PC y otras plataformas
 
 Para compilar en PC (Linux, macOS, Windows) y el resto de plataformas, sigue las instrucciones del proyecto original: [LBA2 Classic Community](https://github.com/LBALab/lba2-classic-community#building-from-source-quick-start).
 
