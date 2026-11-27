@@ -406,11 +406,11 @@ void DrawListHoloPlan() {
 //════════════════════════════════════════════════════════════════════════════
 /* Community additions to the island map: any island Twinsen knows can be
    opened (from the globe, and with L / R from one map to the next; only to
-   look, he stays where he is), and the island's name is written at the top.
-   The map is drawn through a view (HoloPlanDrawMap) that can show part of it
-   scaled up; it shows all of it, s_zoom stays 1x (the right-stick zoom was
-   tried and taken out). */
+   look, he stays where he is), the right stick zooms in on the chosen place,
+   and the island's name is written at the top. */
 #define HOLO_ZOOM_ONE 1024
+#define HOLO_ZOOM_MAX 3072
+#define HOLO_ZOOM_RATE 2048 /* per second at full tilt: 1x to 3x in a second */
 
 static U8 s_mapClean[IMAGE_AUTHORED_WIDTH * IMAGE_AUTHORED_HEIGHT]; /* the map as loaded */
 static S32 s_mapX0 = 0, s_mapY0 = 0;                                /* where it sits in Log */
@@ -504,6 +504,17 @@ static void HoloPlanDrawMap(S32 fx, S32 fy) {
 
     CopyScreen(Log, Screen);
     HoloPlanSetProjection();
+}
+
+/* Where on the unzoomed map the chosen place is, to zoom in on it. */
+static void HoloPlanFocus(S32 *fx, S32 *fy) {
+    if (NumObjectif == -1) {
+        *fx = s_viewX + s_viewW / 2;
+        *fy = s_viewY + s_viewH / 2;
+        return;
+    }
+    *fx = s_viewX + (XpObjectif - s_mapX0) * HOLO_ZOOM_ONE / s_zoom;
+    *fy = s_viewY + (YpObjectif - s_mapY0) * HOLO_ZOOM_ONE / s_zoom;
 }
 
 void InitHoloPlan() {
@@ -895,14 +906,43 @@ int HoloPlan_IsCaptureArmed(void) {
     return s_holoplan_capture_path[0] != '\0';
 }
 
+/* The reticule sits where the chosen place was projected; after the view
+   moves or zooms, project it again so the cursor stays on its arrow. */
+static void HoloPlanReprojectObjectif(void) {
+    S32 xt = 0, yt = 0, zt = 0;
+    if (NumObjectif == -1)
+        return;
+    if (NumObjectif == 1000) {
+        RecupCoorTwinsen(&xt, &yt, &zt);
+    } else {
+        xt = TabArrow[NumObjectif].X;
+        yt = TabArrow[NumObjectif].Y;
+        zt = TabArrow[NumObjectif].Z;
+    }
+    LongWorldRotatePoint(xt, yt, zt);
+    LongProjectPoint(X0, Y0, Z0);
+    XpObjectif = Xp;
+    YpObjectif = Yp;
+    OldObjectif = -2; /* redraw the reticule there */
+}
+
 /* L / R (Page Up / Page Down) step to the previous / next island Twinsen
-   knows. */
+   knows; the right stick zooms in and out on the chosen place. */
 static void HoloPlanExtraInput(void) {
     static S32 s_prevL = 0, s_prevR = 0;
+    static U32 s_lastTime = 0;
+    static S32 s_lastObjectif = -2;
     const S32 l = CheckKey(K_GAMEPAD_LSHOULDER) OR CheckKey(K_PAGE_UP);
     const S32 r = CheckKey(K_GAMEPAD_RSHOULDER) OR CheckKey(K_PAGE_DOWN);
+    const U32 now = TimerRefHR;
+    U32 dt = now - s_lastTime;
     S32 step = 0;
+    S32 zoom = s_zoom;
+    S32 fx, fy;
 
+    s_lastTime = now;
+    if (dt > 100)
+        dt = 100;
     if (l AND !s_prevL)
         step = -1;
     else if (r AND !s_prevR)
@@ -926,8 +966,31 @@ static void HoloPlanExtraInput(void) {
             OldObjectif = -2;
             NumOldMess = -1;
             BoxStaticAdd(0, 0, (S32)ModeDesiredX - 1, (S32)ModeDesiredY - 1);
+            s_lastObjectif = NumObjectif;
+            return;
         }
     }
+
+    if (JoystickIsPresent()) {
+        S16 rx = 0, ry = 0;
+        JoystickGetRightStick(&rx, &ry);
+        if (ry<-JoystickDeadzone OR ry> JoystickDeadzone)
+            zoom -= (S32)((S64)ry * HOLO_ZOOM_RATE * (S32)dt / (32768 * 1000));
+    }
+    if (zoom < HOLO_ZOOM_ONE)
+        zoom = HOLO_ZOOM_ONE;
+    if (zoom > HOLO_ZOOM_MAX)
+        zoom = HOLO_ZOOM_MAX;
+
+    /* Zoomed in, a new place chosen with the D-pad brings the view to it. */
+    if (zoom != s_zoom OR(s_zoom != HOLO_ZOOM_ONE AND NumObjectif != s_lastObjectif)) {
+        HoloPlanFocus(&fx, &fy);
+        s_zoom = zoom;
+        HoloPlanDrawMap(fx, fy);
+        HoloPlanReprojectObjectif();
+        BoxStaticAdd(0, 0, (S32)ModeDesiredX - 1, (S32)ModeDesiredY - 1);
+    }
+    s_lastObjectif = NumObjectif;
 }
 
 void HoloPlan(S32 numplan) {

@@ -16,6 +16,9 @@ static U32 *s_argb = NULL;
 static U8 *s_key = NULL;
 static U8 s_keyPalette[768];
 static U32 s_serial = 0;
+/* The picture's 4:3 middle, the part that stands for the original map; the
+   rest of a wider picture shows beside it, in the screen's side bars. */
+static S32 s_coreX = 0, s_coreW = 0;
 
 void HoloHD_End(void) {
     SetPresentBackdrop(NULL);
@@ -36,9 +39,9 @@ void HoloHD_SetView(S32 sx, S32 sy, S32 sw, S32 sh) {
         memcpy(s_key + (size_t)y * IMAGE_AUTHORED_WIDTH,
                (U8 *)Log + (size_t)(s_backdrop.y + y) * ModeDesiredX + s_backdrop.x, IMAGE_AUTHORED_WIDTH);
     /* The same part of the picture, in its own pixels. */
-    s_backdrop.src_x = (S32)((S64)sx * (S32)s_backdrop.width / IMAGE_AUTHORED_WIDTH);
+    s_backdrop.src_x = s_coreX + (S32)((S64)sx * s_coreW / IMAGE_AUTHORED_WIDTH);
     s_backdrop.src_y = (S32)((S64)sy * (S32)s_backdrop.height / IMAGE_AUTHORED_HEIGHT);
-    s_backdrop.src_w = (S32)((S64)sw * (S32)s_backdrop.width / IMAGE_AUTHORED_WIDTH);
+    s_backdrop.src_w = (S32)((S64)sw * s_coreW / IMAGE_AUTHORED_WIDTH);
     s_backdrop.src_h = (S32)((S64)sh * (S32)s_backdrop.height / IMAGE_AUTHORED_HEIGHT);
     SetPresentBackdrop(&s_backdrop);
 }
@@ -79,7 +82,20 @@ void HoloHD_Begin(S32 entry, S32 x0, S32 y0, const U8 *palette) {
     s_backdrop.key = s_key;
     s_backdrop.key_palette = s_keyPalette;
     s_backdrop.serial = ++s_serial;
-    LogPrintf("holomap: redrawn map %s (%dx%d)\n", path, (int)w, (int)h);
+    /* Wider than 4:3 (a widescreen map): the middle 4:3 is the map. */
+    s_coreW = w;
+    s_coreX = 0;
+    if ((S64)w * 3 > (S64)h * 4 + 3) {
+        s_coreW = (S32)(((S64)h * 4 + 1) / 3);
+        s_coreX = (w - s_coreW) / 2;
+        s_backdrop.spill = 1;
+    }
+    s_backdrop.src_x = s_coreX;
+    s_backdrop.src_y = 0;
+    s_backdrop.src_w = s_coreW;
+    s_backdrop.src_h = h;
+    LogPrintf("holomap: redrawn map %s (%dx%d, map %d wide at %d)\n", path, (int)w, (int)h, (int)s_coreW,
+              (int)s_coreX);
 }
 
 void HoloHD_ReplaceTexture(S32 entry, U8 *texture, U32 size, const U8 *palette) {

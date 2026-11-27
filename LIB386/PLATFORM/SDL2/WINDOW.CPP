@@ -24,6 +24,7 @@ bool s_backdropOn = false;
 SDL_Rect s_backdropRect = {0, 0, 0, 0}; /* in frame pixels */
 SDL_Rect s_backdropSrc = {0, 0, 0, 0};  /* in picture pixels; w 0 for all of it */
 Uint8 s_backdropBright = 255;
+bool s_backdropSpill = false;
 #ifdef LBA2_SDL2_TESTS
 void (*s_presentProbe)(SDL_Renderer *) = NULL;
 int (*s_fullscreenProbe)(SDL_Window *, Uint32) = NULL;
@@ -132,6 +133,7 @@ void ApplyBackdrop(const PlatformFrame *frame, uint32_t *pixels, uint32_t pitch)
     s_backdropSrc.y = b->src_y;
     s_backdropSrc.w = b->src_w > 0 && b->src_h > 0 ? b->src_w : 0;
     s_backdropSrc.h = b->src_h;
+    s_backdropSpill = b->spill != 0;
     s_backdropOn = true;
 }
 
@@ -146,10 +148,38 @@ bool PresentTexture() {
     if (s_backdropOn && s_backdropTexture) {
         /* The picture first, the frame over it with its holes; a shader
            filter would have no use on a still map, so SDL's copy draws it. */
-        const SDL_Rect dst = MapRect(area, s_backdropRect);
+        SDL_Rect dst = MapRect(area, s_backdropRect);
+        SDL_Rect src = s_backdropSrc;
+        int tw = 0, th = 0;
+        SDL_QueryTexture(s_backdropTexture, NULL, NULL, &tw, &th);
+        if (!src.w) {
+            src.x = 0;
+            src.y = 0;
+            src.w = tw;
+            src.h = th;
+        }
+        if (s_backdropSpill && src.w > 0 && dst.w > 0) {
+            /* A widescreen picture: the rest of it beside the frame, into
+               the bars, at the same scale, as far as either reaches. */
+            const double scale = (double)dst.w / src.w;
+            int left = (int)(dst.x / scale), right = (int)((width - dst.x - dst.w) / scale);
+            if (left > src.x)
+                left = src.x;
+            if (right > tw - src.x - src.w)
+                right = tw - src.x - src.w;
+            if (left < 0)
+                left = 0;
+            if (right < 0)
+                right = 0;
+            const int dx0 = dst.x - (int)(left * scale + 0.5), dx1 = dst.x + dst.w + (int)(right * scale + 0.5);
+            src.x -= left;
+            src.w += left + right;
+            dst.x = dx0;
+            dst.w = dx1 - dx0;
+        }
         SDL_SetTextureColorMod(s_backdropTexture, s_backdropBright, s_backdropBright, s_backdropBright);
         SDL_SetTextureBlendMode(s_texture, SDL_BLENDMODE_BLEND);
-        if (SDL_RenderCopy(s_renderer, s_backdropTexture, s_backdropSrc.w ? &s_backdropSrc : NULL, &dst) != 0 ||
+        if (SDL_RenderCopy(s_renderer, s_backdropTexture, &src, &dst) != 0 ||
             SDL_RenderCopy(s_renderer, s_texture, NULL, &area) != 0)
             return Error("Unable to present SDL2 frame");
         drawn = true;
