@@ -11,8 +11,21 @@
  * outdoor Auto camera is the one in use. Meant to be removed once the limits
  * are set. */
 
-/* The file is looked for once, at the first call. */
+/* The file is looked for beside the game data and in the user folder, also as
+ * tester_camara.txt.txt (Windows hiding the extension), every few seconds until
+ * found, so it can be added while the game runs. */
 extern S32 CamHud_Enabled(void);
+
+/* Who drives the camera this frame. Anything but AUTO shows only a line saying
+ * so and where Twinsen is, so the readout always tells the tester it is on. */
+#define CAM_HUD_AUTO 0
+#define CAM_HUD_ZONE 1
+#define CAM_HUD_INTERIOR 2
+#define CAM_HUD_CINEMA 3
+#define CAM_HUD_OFF 4
+
+/* Called every game frame, before CamHud_Note can be. */
+extern void CamHud_NoteMode(U32 nowMs, S32 mode, S32 island, S32 cube);
 
 /* This frame's values. `nowMs` is the platform clock; the readout goes away
  * a little after the last frame that noted values. */

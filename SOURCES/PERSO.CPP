@@ -1945,6 +1945,17 @@ restartloop:
         if (CinemaMode OR !FollowCamera)
             FollowCamForgetLoan();
 
+        /* Tester readout (CAMHUD.H): who drives the camera, before GereExtKeys
+         * notes the Auto camera's values. */
+        if (CamHud_Enabled())
+            CamHud_NoteMode((U32)g_platform.system.ticks_ms(),
+                            CinemaMode                   ? CAM_HUD_CINEMA
+                            : CubeMode != CUBE_EXTERIEUR ? CAM_HUD_INTERIOR
+                            : CameraZone                 ? CAM_HUD_ZONE
+                            : !FollowCamera              ? CAM_HUD_OFF
+                                                         : CAM_HUD_AUTO,
+                            Island, NumCube);
+
         if (!CameraZone) {
             if (!CinemaMode) {
                 // AlphaCam (touches '+' et '-' *)

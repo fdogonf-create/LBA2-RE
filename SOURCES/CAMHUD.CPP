@@ -4,16 +4,26 @@
 
 #include <PLATFORM/PLATFORM.H>
 #include <SYSTEM/LIMITS.H>
+#include <SYSTEM/LOGPRINT.H>
 
 #include <stdio.h>
 #include <string.h>
 
 #define CAM_HUD_HOLD_MS 300
 #define CAM_HUD_LINES 4
+#define CAM_HUD_RECHECK_MS 3000
 
-static S32 s_enabled = -1;
+static S32 s_enabled = 0;
+static S32 s_checked = 0;
+static U32 s_checkMs = 0;
 static U32 s_lastMs = 0;
 static S32 s_noted = 0;
+static S32 s_lineCount = 0;
+static S32 s_mode = CAM_HUD_OFF;
+static U32 s_modeMs = 0;
+static S32 s_modeNoted = 0;
+static S32 s_island = 0;
+static S32 s_cube = 0;
 static char s_lines[CAM_HUD_LINES][48];
 
 /* 5x7 glyphs, one byte a row, bit 4 the leftmost column. */
@@ -71,17 +81,66 @@ static const U8 *Glyph(char c) {
     return blank;
 }
 
-S32 CamHud_Enabled(void) {
-    if (s_enabled < 0) {
-        char path[ADELINE_MAX_PATH];
-        FILE *f;
-        GetResPath(path, ADELINE_MAX_PATH, "tester_camara.txt");
-        f = fopen(path, "rb");
-        s_enabled = (f != NULL);
-        if (f != NULL)
-            fclose(f);
+static S32 FileThere(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (f == NULL)
+        return FALSE;
+    fclose(f);
+    return TRUE;
+}
+
+/* The switch file beside the game data or in the user folder. */
+static S32 FindSwitchFile(char *found, U32 foundMax) {
+    static const char *const names[] = {"tester_camara.txt", "tester_camara.txt.txt", "TESTER_CAMARA.TXT"};
+    char path[ADELINE_MAX_PATH];
+    char userPath[ADELINE_MAX_PATH];
+    S32 n;
+
+    for (n = 0; n < (S32)(sizeof(names) / sizeof(names[0])); n++) {
+        GetResPath(path, ADELINE_MAX_PATH, names[n]);
+        if (FileThere(path)) {
+            snprintf(found, foundMax, "%s", path);
+            return TRUE;
+        }
+        GetLogPath(userPath, ADELINE_MAX_PATH, names[n]);
+        if (FileThere(userPath)) {
+            snprintf(found, foundMax, "%s", userPath);
+            return TRUE;
+        }
     }
+    GetResPath(path, ADELINE_MAX_PATH, names[0]);
+    GetLogPath(userPath, ADELINE_MAX_PATH, names[0]);
+    snprintf(found, foundMax, "%s or %s", path, userPath);
+    return FALSE;
+}
+
+S32 CamHud_Enabled(void) {
+    U32 now;
+    char where[2 * ADELINE_MAX_PATH + 8];
+
+    if (s_enabled)
+        return TRUE;
+    now = (U32)g_platform.system.ticks_ms();
+    if (s_checked AND(U32)(now - s_checkMs) < CAM_HUD_RECHECK_MS)
+        return FALSE;
+    s_enabled = FindSwitchFile(where, sizeof(where));
+    s_checkMs = now;
+    if (s_enabled)
+        LogPrintf("camhud: camera readout on (%s)\n", where);
+    else if (!s_checked)
+        LogPrintf("camhud: no tester_camara.txt at %s, readout off\n", where);
+    s_checked = 1;
     return s_enabled;
+}
+
+void CamHud_NoteMode(U32 nowMs, S32 mode, S32 island, S32 cube) {
+    if (!CamHud_Enabled())
+        return;
+    s_mode = mode;
+    s_modeMs = nowMs;
+    s_modeNoted = 1;
+    s_island = island;
+    s_cube = cube;
 }
 
 void CamHud_Note(U32 nowMs, S32 alpha, S32 alphaMin, S32 alphaMax, S32 dist, S32 distMin, S32 distMax, S32 beta,
@@ -126,11 +185,22 @@ void CamHud_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const U8 
     U32 now;
 
     (void)palette_rgb;
-    if (frameBuffer == NULL OR width == 0 OR height == 0 OR !s_noted)
+    if (frameBuffer == NULL OR width == 0 OR height == 0 OR !s_enabled OR(!s_noted AND !s_modeNoted))
         return;
     now = (U32)g_platform.system.ticks_ms();
-    if ((U32)(now - s_lastMs) > CAM_HUD_HOLD_MS)
+    if ((U32)(now - s_lastMs) <= CAM_HUD_HOLD_MS) {
+        s_lineCount = CAM_HUD_LINES;
+    } else if (s_modeNoted AND(U32)(now - s_modeMs) <= CAM_HUD_HOLD_MS AND s_mode != CAM_HUD_AUTO) {
+        const char *what = s_mode == CAM_HUD_ZONE       ? "CAMARA FIJA DEL JUEGO (ZONA)"
+                           : s_mode == CAM_HUD_INTERIOR ? "INTERIOR: CAMARA FIJA"
+                           : s_mode == CAM_HUD_CINEMA   ? "ESCENA DE CINE"
+                                                        : "CAMARA AUTO APAGADA";
+        snprintf(s_lines[0], sizeof(s_lines[0]), "%s", what);
+        snprintf(s_lines[1], sizeof(s_lines[1]), "ISLA: %d  ESCENA: %d", (int)s_island, (int)s_cube);
+        s_lineCount = 2;
+    } else {
         return;
+    }
     pitchPixels = (S32)(pitch / sizeof(U32));
     scale = (S32)height / 240;
     if (scale < 1)
@@ -138,14 +208,14 @@ void CamHud_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const U8 
     lineH = 9 * scale;
     x0 = 4 * scale;
     y0 = 4 * scale;
-    for (n = 0; n < CAM_HUD_LINES; n++) {
+    for (n = 0; n < s_lineCount; n++) {
         S32 len = (S32)strlen(s_lines[n]);
         if (len > longest)
             longest = len;
     }
     FillRect(frameBuffer, pitchPixels, (S32)width, (S32)height, x0 - 2 * scale, y0 - 2 * scale,
-             x0 + longest * 6 * scale + 2 * scale, y0 + CAM_HUD_LINES * lineH + scale, 0, 1);
-    for (n = 0; n < CAM_HUD_LINES; n++) {
+             x0 + longest * 6 * scale + 2 * scale, y0 + s_lineCount * lineH + scale, 0, 1);
+    for (n = 0; n < s_lineCount; n++) {
         const char *s = s_lines[n];
         for (i = 0; s[i]; i++) {
             const U8 *g = Glyph(s[i]);
