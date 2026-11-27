@@ -406,8 +406,8 @@ void DrawListHoloPlan() {
 //════════════════════════════════════════════════════════════════════════════
 /* Community additions to the island map: any island Twinsen knows can be
    opened (from the globe, and with L / R from one map to the next; only to
-   look, he stays where he is), the right stick zooms in on the chosen place,
-   and the island's name is written at the top. */
+   look, he stays where he is), and the right stick zooms in on the chosen
+   place. */
 #define HOLO_ZOOM_ONE 1024
 #define HOLO_ZOOM_MAX 3072
 #define HOLO_ZOOM_RATE 2048 /* per second at full tilt: 1x to 3x in a second */
@@ -416,15 +416,6 @@ static U8 s_mapClean[IMAGE_AUTHORED_WIDTH * IMAGE_AUTHORED_HEIGHT]; /* the map a
 static S32 s_mapX0 = 0, s_mapY0 = 0;                                /* where it sits in Log */
 static S32 s_zoom = HOLO_ZOOM_ONE;
 static S32 s_viewX = 0, s_viewY = 0, s_viewW = IMAGE_AUTHORED_WIDTH, s_viewH = IMAGE_AUTHORED_HEIGHT;
-
-static const char *const s_islandNamesEs[MAX_ISLAND] = {
-    "Isla de la Ciudadela", "Pozo de Sendell", "Isla del Desierto", "Luna Esmeralda",
-    "Otringal", "Isla de la Celebraci\xA2n", "Isla de los Wannies", "Isla de los Mosquibees",
-    "Knartas", "Isla CX", "Ascensor", "Bajo la Isla de la Celebraci\xA2n"};
-static const char *const s_islandNamesEn[MAX_ISLAND] = {
-    "Citadel Island", "Sendell's Well", "Desert Island", "Emerald Moon",
-    "Otringal", "Celebration Island", "Island of the Wannies", "Island of the Mosquibees",
-    "Knartas", "Island CX", "Elevator", "Under Celebration Island"};
 
 /* Whether holomap.hqr has a map for `island` (Sendell's well has none). */
 static S32 HoloPlanHasMap(S32 island) {
@@ -486,16 +477,6 @@ static void HoloPlanDrawMap(S32 fx, S32 fy) {
             dst[x] = src[s_viewX + x * s_viewW / IMAGE_AUTHORED_WIDTH];
     }
     HoloHD_SetView(s_viewX, s_viewY, s_viewW, s_viewH);
-
-    if (ZoomedIsland >= 0 AND ZoomedIsland < MAX_ISLAND) {
-        char *name = (char *)(Language == 3 ? s_islandNamesEs : s_islandNamesEn)[ZoomedIsland];
-        const S32 nx = s_mapX0 + (IMAGE_AUTHORED_WIDTH - SizeFont(name)) / 2;
-        UnsetClip();
-        ColorFont(BLACK);
-        Font(nx + 2, s_mapY0 + 14, name);
-        ColorFont(LBAWHITE);
-        Font(nx, s_mapY0 + 12, name);
-    }
 
     AffUpperLeft(s_mapX0, s_mapY0, 0);
     AffLowerLeft(s_mapX0, y1, 0);

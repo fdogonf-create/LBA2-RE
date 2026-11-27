@@ -4,7 +4,7 @@ Each island map the holomap zooms into is a 640x480, 256-colour picture in `holo
 
 A redrawn picture can stand in for one. [scripts/holomap_export.py](../scripts/holomap_export.py) saves the originals as `holomap_<entry>.png`, in the game palette (`ress.hqr` entry 0), with nothing but Python 3. A picture of the same name in an `hd` folder beside the game data (`sdmc:/lba2/hd/` on the Switch) is then shown in place of the original, scaled to the map's rectangle at the screen's own resolution. Any 4:3 size works; the islands must keep their place and shape, because the models are still drawn where the original puts them. About 1920x1440 is as much as a 1080p screen can show.
 
-A widescreen picture (wider than 4:3, best exactly 16:9, such as 1920x1080) also works: its middle 4:3 (1440x1080 of a 1920x1080 picture) is the map, with the same rule about islands, and what is left and right of it fills the black bars beside the game on a 16:9 screen (`PlatformBackdrop::spill`). The 3D models stay inside the middle part.
+A widescreen picture (wider than 4:3, best exactly 16:9, such as 1920x1080) also works: its middle 4:3 (1440x1080 of a 1920x1080 picture) is the map, with the same rule about islands, and what is left and right of it fills the black beside the map: first the frame's own columns beside it when the frame is wider than 640 (`HoloHD_SetView` widens the backdrop rectangle and its key over them), then the bars beside the frame on the screen (`PlatformBackdrop::spill`). The 3D models stay inside the middle part.
 
 ## How it is shown
 
@@ -19,7 +19,6 @@ The SDL2 backend ([WINDOW.CPP](../LIB386/PLATFORM/SDL2/WINDOW.CPP), `ApplyBackdr
 - From the globe, the map of any island Twinsen knows opens, not only his own (`HoloPlan_IslandKnown`: he is on it, or one of its cubes is marked).
 - On the map, L / R (Page Up / Page Down) step to the previous / next known island. It only changes what is shown; Twinsen stays where he is.
 - The right stick zooms in (up) and out (down), from 1x to 3x, centred on the chosen place; choosing another place with the D-pad while zoomed brings the view to it. The map is scaled from a clean copy (`HoloPlanDrawMap`) and the projection follows, so the models stay on their spots.
-- The island's name is written at the top of the map (Spanish when the text language is Spanish, English otherwise).
 
 ## The globe's surface
 
