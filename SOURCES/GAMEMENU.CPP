@@ -10,8 +10,9 @@
 #include <SYSTEM/LE.H>
 #include "PERSO.H" /* WriteConfigFile (persist on resolution change) */
 #include "RES_MENU.H"
-#include "RETAILFIX.H"  /* the Fix retail bugs row */
-#include "RES_SWITCH.H" /* Res_Switch (apply on cycle) */
+#include "RETAILFIX.H"    /* the Fix retail bugs row */
+#include "COMBATASSIST.H" /* the Improved combat row */
+#include "RES_SWITCH.H"   /* Res_Switch (apply on cycle) */
 #include "MENU_KEYNAV.H"
 #include "MENU_INPUT.H"
 #include "SAVENAME_VALIDATION.H"
@@ -109,6 +110,7 @@ S32 FlagShowEndDemo = FALSE;
 #define MENU_ID_VIDEOTECA_PAGE 2124
 #define MENU_ID_VIDEOTECA_PREV 2125
 #define MENU_ID_VIDEOTECA_NEXT 2126
+#define MENU_ID_COMBAT_ASSIST 2127
 // Movie library rows: MENU_ID_VIDEO_BASE + the row's place on the page.
 #define MENU_ID_VIDEO_BASE 2300
 #define VIDEOTECA_PER_PAGE 6
@@ -280,7 +282,7 @@ U16 LanguageMenu[] = {
 
 U16 AdvancedOptionMenu[] = {
     0,   // selected
-    8,   // nb entries
+    9,   // nb entries
     260, // y center
     0,   // .dia num
 
@@ -300,6 +302,8 @@ U16 AdvancedOptionMenu[] = {
     MENU_ID_DISPLAY_TEXT,
     0,
     MENU_ID_RETAIL_FIXES,
+    0,
+    MENU_ID_COMBAT_ASSIST,
 };
 
 // Camera submenu: the outdoor camera (Auto or Classic) and the indoor one
@@ -648,6 +652,11 @@ static void BuildCustomMenuText(S32 num, char *string) {
                         GetLocalizedMenuLabel(RetailFixes == RETAIL_FIXES_NO       ? MENU_LABEL_RETAIL_FIXES_NO
                                               : RetailFixes == RETAIL_FIXES_CUSTOM ? MENU_LABEL_RETAIL_FIXES_CUSTOM
                                                                                    : MENU_LABEL_RETAIL_FIXES_YES));
+        break;
+
+    case MENU_ID_COMBAT_ASSIST:
+        CopyUtf8ToCp850(string, 256,
+                        GetLocalizedMenuLabel(CombatAssist ? MENU_LABEL_COMBAT_ASSIST_ON : MENU_LABEL_COMBAT_ASSIST_OFF));
         break;
 
     case MENU_ID_GENERAL_VOLUME:
@@ -3724,6 +3733,10 @@ S32 GereAdvancedOptionsMenu(void) {
 
         case MENU_ID_RETAIL_FIXES:
             RetailFix_MenuSelect();
+            break;
+
+        case MENU_ID_COMBAT_ASSIST:
+            CombatAssist ^= 1;
             break;
 
         case MENU_ID_DISPLAY_TEXT:

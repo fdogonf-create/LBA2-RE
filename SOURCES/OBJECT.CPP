@@ -23,8 +23,9 @@
 #include <SYSTEM/KEYBOARD_KEYS.H>
 #include <stdint.h>
 #include "AMBIANCE.H"
-#include "ANALOGMOVE.H" /* the left stick walking Twinsen the way it points */
-#include "ACTIONHINT.H" /* the A button shown in a zone the action button works in */
+#include "ANALOGMOVE.H"   /* the left stick walking Twinsen the way it points */
+#include "ACTIONHINT.H"   /* the A button shown in a zone the action button works in */
+#include "COMBATASSIST.H" /* CombatAssist: counter a knock-back, a moment free of the next */
 #include "VIDEOTECA.H"
 #include <PLATFORM/PLATFORM.H>
 
@@ -1503,6 +1504,25 @@ void InitHitExtraPof(S32 x, S32 y, S32 z, S32 hitforce) {
 
 //▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 /*──────────────────────────────────────────────────────────────────────────*/
+S32 CombatAssist = LBA2_COMBAT_ASSIST_DEFAULT;
+
+/* When Twinsen's last knock-back started (TimerRefHR), for CombatAssist. */
+static U32 s_heroKnockMs = 0;
+static S32 s_heroKnocked = FALSE;
+
+/* Whether a hit landing on Twinsen now may knock him back: always, unless
+ * CombatAssist is on and one already did a moment ago. */
+static S32 HeroMayBeKnocked(void) {
+    if (!CombatAssist OR !s_heroKnocked)
+        return TRUE;
+    return (U32)(TimerRefHR - s_heroKnockMs) >= COMBAT_ASSIST_GRACE_MS;
+}
+
+static void HeroKnocked(void) {
+    s_heroKnockMs = TimerRefHR;
+    s_heroKnocked = TRUE;
+}
+
 void HitObj(U8 numhitter, U8 num, S32 hitforce, S32 beta) {
     S32 memo;
     T_OBJET *ptrobjt;
@@ -1546,7 +1566,7 @@ void HitObj(U8 numhitter, U8 num, S32 hitforce, S32 beta) {
                 GereAnimAction(ptrobjt, num);
             }
             ptrobjt->Obj.LastFrame = memo;
-        } else {
+        } else if (num != NUM_PERSO OR HeroMayBeKnocked()) {
             if ((beta != -1)
                     AND !(ptrobjt->WorkFlags & TRACK_MASTER_ROT)) {
                 InitBoundAngleMove(&ptrobjt->BoundAngle,
@@ -1559,6 +1579,8 @@ void HitObj(U8 numhitter, U8 num, S32 hitforce, S32 beta) {
                 InitAnim(GEN_ANIM_CHOC, ANIM_ALL_THEN, num);
             else
                 InitAnim(GEN_ANIM_CHOC2, ANIM_ALL_THEN, num);
+            if (num == NUM_PERSO)
+                HeroKnocked();
         }
 
         /* effet special choc */
@@ -1587,8 +1609,10 @@ void HitObj(U8 numhitter, U8 num, S32 hitforce, S32 beta) {
                 GereAnimAction(ptrobjt, num);
             }
             ptrobjt->Obj.LastFrame = memo;
-        } else {
+        } else if (num != NUM_PERSO OR HeroMayBeKnocked()) {
             InitAnim(GEN_ANIM_ENCAISSE, ANIM_ALL_THEN, num);
+            if (num == NUM_PERSO)
+                HeroKnocked();
         }
     }
 }
@@ -4213,6 +4237,12 @@ void DoDir(U8 numobj) {
                 break;
 
             case C_AGRESSIF:
+                /* CombatAssist: a fresh press during a knock-back cuts it short,
+                   so the blow below can start this frame. */
+                if (CombatAssist AND(Input & I_ACTION_M) AND !(LastInput & I_ACTION_M)
+                        AND ptrobj->FlagAnim == ANIM_ALL_THEN AND ptrobj->LifePoint > 0 AND(ptrobj->GenAnim == GEN_ANIM_CHOC OR ptrobj->GenAnim == GEN_ANIM_CHOC2 OR ptrobj->GenAnim == GEN_ANIM_ENCAISSE)) {
+                    ptrobj->FlagAnim = ANIM_REPEAT;
+                }
                 if (Input & I_ACTION_M) {
                     LastJoyFlag = TRUE;
                     /* essai control direction pendant combat */

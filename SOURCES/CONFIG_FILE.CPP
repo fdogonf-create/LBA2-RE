@@ -1,8 +1,9 @@
 #include "C_EXTERN.H"
 
 #include "CONFIG_FILE.H"
-#include "ANALOGMOVE.H" /* GamepadAnalogMove and its default */
-#include "ACTIONHINT.H" /* GamepadActionHint and its default */
+#include "ANALOGMOVE.H"   /* GamepadAnalogMove and its default */
+#include "ACTIONHINT.H"   /* GamepadActionHint and its default */
+#include "COMBATASSIST.H" /* CombatAssist and its default */
 #include "SETTINGS.H"
 #include "CONSOLE/CONSOLE.H" /* Console_SetToggleScancode */
 #include "CONTROL.H"         /* Control_Has* / Control_Get*: the per-run overrides */
@@ -234,6 +235,9 @@ static const T_SETTING GamepadSettings[] = {
      NULL, NULL, NULL, NULL, "Analog right-stick camera in Auto cam", SETTING_RECORDED, SETTING_BEFORE_NONE},
     {"GamepadDpadZoom", NULL, "pad_dpad_zoom", &GamepadDpadZoom, SETTING_TRUTHY, LBA2_MODERN_PAD_DEFAULT, 0, 1,
      NULL, NULL, NULL, NULL, "D-pad up / down zoom the Auto camera in / out", SETTING_RECORDED, SETTING_BEFORE(0)},
+    {"CombatAssist", NULL, "combat_assist", &CombatAssist, SETTING_TRUTHY, LBA2_COMBAT_ASSIST_DEFAULT, 0, 1, NULL,
+     NULL, NULL, NULL, "Improved combat: attack cuts a knock-back short, a moment free of the next one",
+     SETTING_RECORDED, SETTING_BEFORE(0), SETTING_ABSENT_BEFORE},
     {"GamepadActionHint", NULL, "pad_action_hint", &GamepadActionHint, SETTING_TRUTHY, LBA2_ACTION_HINT_DEFAULT, 0, 1,
      NULL, NULL, NULL, NULL, "Show a small A button while the action button would do something",
      SETTING_NOT_RECORDED, SETTING_BEFORE(0)},
