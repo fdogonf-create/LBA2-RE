@@ -37,7 +37,7 @@ extern S32 GfxDitherShading;
 #include <SVGA/SCREEN.H>
 #include <SYSTEM/KEYBOARD_KEYS.H>
 #include "ACTIONHINT.H" /* ActionHint_Render, after the touch overlay */
-#include "CAMHUD.H"    /* CamHud_Render, the tester camera readout */
+#include "CAMHUD.H"     /* CamHud_Render, the tester camera readout */
 #include "FOLLOWCAM.H"
 #include "FOLLOWCAM_CFG.H"  /* the *_DEFAULT tunables, read and written by the cfg below */
 #include "FOLLOWCAM_MATH.H" /* FollowCamIsoStep: one frame of the interior follow */
