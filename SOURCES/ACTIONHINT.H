@@ -45,6 +45,9 @@ extern void ActionHint_Note(U32 nowMs);
 #define ACTION_HINT_LABEL_NONE 0
 #define ACTION_HINT_LABEL_CLIMB_ES 1 /* "Trepar" */
 #define ACTION_HINT_LABEL_CLIMB_EN 2 /* "Climb" */
+/* At the top of a ladder: A turns him round and takes him down it. */
+#define ACTION_HINT_LABEL_DESCEND_ES 3 /* "Bajar" */
+#define ACTION_HINT_LABEL_DESCEND_EN 4 /* "Down" */
 extern void ActionHint_NoteLabel(U32 nowMs, S32 label);
 
 /* The game has just written something to the card (its settings, a save):

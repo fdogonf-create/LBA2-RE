@@ -83,6 +83,19 @@ void AnalogMove_ApplyBuggy(void) {
         Input |= I_DOWN;
 }
 
+S32 AnalogMove_StickTarget(S32 exterior, S32 betaCam) {
+    S16 lx = 0;
+    S16 ly = 0;
+    S32 dz = JoystickDeadzone;
+
+    if (!GamepadAnalogMove || !JoystickIsPresent() || Record_IsReplaying())
+        return -1;
+    JoystickGetLeftStick(&lx, &ly);
+    if ((S32)lx * lx + (S32)ly * ly < dz * dz)
+        return -1;
+    return exterior ? AnalogMove_TargetExterior(lx, ly, betaCam) : AnalogMove_TargetIso(lx, ly);
+}
+
 void AnalogMove_Apply(S32 *beta, S32 canTurn, S32 exterior, S32 onLadder, S32 nearLadder, S32 betaCam,
                       S32 cameraOrbiting) {
     S16 lx = 0;

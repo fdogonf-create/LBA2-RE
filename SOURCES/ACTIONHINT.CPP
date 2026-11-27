@@ -355,8 +355,14 @@ void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const
 
     /* A word beside it moves the button left by the word's width. */
     if (climb) {
-        const U8 *mask = s_label == ACTION_HINT_LABEL_CLIMB_ES ? kLabelClimbEs : kLabelClimbEn;
-        S32 w = s_label == ACTION_HINT_LABEL_CLIMB_ES ? kLabelClimbEs_W : kLabelClimbEn_W;
+        const U8 *mask = s_label == ACTION_HINT_LABEL_CLIMB_ES     ? kLabelClimbEs
+                         : s_label == ACTION_HINT_LABEL_DESCEND_ES ? kLabelDescendEs
+                         : s_label == ACTION_HINT_LABEL_DESCEND_EN ? kLabelDescendEn
+                                                                   : kLabelClimbEn;
+        S32 w = s_label == ACTION_HINT_LABEL_CLIMB_ES     ? kLabelClimbEs_W
+                : s_label == ACTION_HINT_LABEL_DESCEND_ES ? kLabelDescendEs_W
+                : s_label == ACTION_HINT_LABEL_DESCEND_EN ? kLabelDescendEn_W
+                                                          : kLabelClimbEn_W;
         S32 textH = radius * 3 / 2;
         S32 textW = w * textH / ACTION_HINT_LABEL_H;
         cx -= textW + radius / 2;
@@ -382,7 +388,11 @@ void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const
     }
 
     /* The button itself, scaled so the drawn disc of the icon is `radius`. */
-    /* Climbing is done by pushing the stick up, not with A: show the stick. */
-    DrawIcon(frameBuffer, pitchPixels, (S32)width, (S32)height, climb ? kIconStickUp : kIconA, cx, cy,
+    /* Climbing is done by pushing the stick up, not with A: show the stick.
+       Going down is A (or walking at the ladder), so it keeps the button. */
+    DrawIcon(frameBuffer, pitchPixels, (S32)width, (S32)height,
+             climb AND s_label != ACTION_HINT_LABEL_DESCEND_ES AND s_label != ACTION_HINT_LABEL_DESCEND_EN ? kIconStickUp
+                                                                                                           : kIconA,
+             cx, cy,
              radius * 2 * ACTION_HINT_ICON_W / ACTION_HINT_ICON_DISC);
 }

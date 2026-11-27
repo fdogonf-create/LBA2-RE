@@ -4132,6 +4132,94 @@ static S32 ClimbByAction(T_OBJET *ptrobj) {
     return TRUE;
 }
 
+/* The facing from which Twinsen at the top of ladder zone `ptrz` looks down
+ * it: the nearest to his own with no floor just in front of his feet while there
+ * is floor under them. -1 when there is none, or he is not at the top. */
+static S32 DescendHoleBeta(T_OBJET *ptrobj, T_ZONE *ptrz) {
+    S32 best = -1;
+    S32 bestDiff = 4096;
+    S32 n;
+
+    if (ptrobj->Obj.Y <= ptrz->Y1 - 256)
+        return -1;
+    if (PtrWorldColBrick(ptrobj->Obj.X, ptrobj->Obj.Y - 128, ptrobj->Obj.Z) == 0)
+        return -1;
+    for (n = 0; n < 16; n++) {
+        S32 beta = n * 256;
+        S32 diff;
+        S32 x0, z0;
+
+        Rotate(ptrobj->XMin, ptrobj->ZMin, beta + (896 * MUL_ANGLE) + (512 * MUL_ANGLE));
+        x0 = X0 + ptrobj->Obj.X;
+        z0 = Z0 + ptrobj->Obj.Z;
+        if (x0 < 0 OR z0 < 0 OR x0 > 64 * SIZE_BRICK_XZ - 1 OR z0 > 64 * SIZE_BRICK_XZ - 1)
+            continue;
+        if (PtrWorldColBrick(x0, ptrobj->Obj.Y - 128, z0) != 0)
+            continue;
+        diff = AnalogMove_AngleDiff(ptrobj->Obj.Beta & 4095, beta);
+        if (diff < 0)
+            diff = -diff;
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            best = beta;
+        }
+    }
+    return best;
+}
+
+/* How long a started descent keeps backing him toward the ladder (TimerRefHR
+ * ms) before it gives up, and how far off the hole the stick may point to count
+ * as walking at it. */
+#define DESCEND_HOLD_MS 1500
+#define DESCEND_STICK_CONE 512
+
+static S32 s_descending = FALSE;
+static U32 s_descendMs = 0;
+
+/* At the top of a ladder the original only goes down walking backwards into it,
+ * and walking at it facing it falls instead. Here the action hint says "down",
+ * and the action button, or the left stick pointed at the ladder, turns him with
+ * his back to it and backs him onto it, which the ladder zone's own descent in
+ * CheckZoneSce then takes over. TRUE when it took this frame's input. */
+static S32 DescendByAction(T_OBJET *ptrobj) {
+    S32 hole;
+    S32 stick;
+
+    if (!GamepadActionHint OR PtrZoneClimb == NULL OR FlagClimbing OR CinemaMode OR ptrobj->FlagAnim == ANIM_ALL_THEN OR(ptrobj->WorkFlags & (FALLING | ANIM_MASTER_GRAVITY))) {
+        s_descending = FALSE;
+        return FALSE;
+    }
+    if (s_descending) {
+        if ((U32)(TimerRefHR - s_descendMs) > DESCEND_HOLD_MS) {
+            s_descending = FALSE;
+            return FALSE;
+        }
+        Input &= ~(I_ACTION_ALWAYS | I_JOY);
+        Input |= I_DOWN;
+        return TRUE;
+    }
+    hole = DescendHoleBeta(ptrobj, PtrZoneClimb);
+    if (hole < 0)
+        return FALSE;
+    ActionHint_NoteLabel((U32)g_platform.system.ticks_ms(),
+                         Language == 3 ? ACTION_HINT_LABEL_DESCEND_ES : ACTION_HINT_LABEL_DESCEND_EN);
+    stick = AnalogMove_StickTarget(CubeMode == CUBE_EXTERIEUR, BetaCam);
+    if (!(Input & I_ACTION_ALWAYS)) {
+        S32 diff;
+        if (stick < 0)
+            return FALSE;
+        diff = AnalogMove_AngleDiff(stick, hole);
+        if (diff > DESCEND_STICK_CONE OR diff < -DESCEND_STICK_CONE)
+            return FALSE;
+    }
+    ptrobj->Obj.Beta = (hole + 2048) & 4095;
+    s_descending = TRUE;
+    s_descendMs = TimerRefHR;
+    Input &= ~(I_ACTION_ALWAYS | I_JOY);
+    Input |= I_DOWN;
+    return TRUE;
+}
+
 void DoDir(U8 numobj) {
     T_OBJET *ptrobj;
     S32 info3;
@@ -4169,7 +4257,7 @@ void DoDir(U8 numobj) {
         /*-------------------------------------------------------------------------*/
     case MOVE_MANUAL:
 
-        if (numobj == NUM_PERSO AND !ClimbByAction(ptrobj)) {
+        if (numobj == NUM_PERSO AND !ClimbByAction(ptrobj) AND !DescendByAction(ptrobj)) {
             /* Mid-jump and during an animation that rotates him, the tank
                controls leave his facing alone too. */
             AnalogMove_Apply(&ptrobj->Obj.Beta,

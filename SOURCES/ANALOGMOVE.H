@@ -73,6 +73,11 @@ void AnalogMove_Apply(S32 *beta, S32 canTurn, S32 exterior, S32 onLadder, S32 ne
  * usual jobs. */
 void AnalogMove_ApplyBuggy(void);
 
+/* The facing the left stick points Twinsen to this frame (exterior: by the
+ * camera's `betaCam`), or -1 when it is not driving him: analog move off, no
+ * pad, a replay, or the stick inside its deadzone. */
+S32 AnalogMove_StickTarget(S32 exterior, S32 betaCam);
+
 /* Pure helpers (host-tested). Stick values are SDL axis units, Y+ = down. */
 
 /* Signed shortest turn from `from` to `to`, in -2048..2047. */
