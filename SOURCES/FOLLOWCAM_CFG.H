@@ -173,14 +173,24 @@
 #define FOLLOW_CAM_ISO_GLIDE_MAX_MS 1500
 
 /* Elevation (AlphaCam) — applies when Auto camera (FollowCamera) is on -----*/
+/* The Switch build (LBA2_MODERN_GAMEPAD) sets its own ALPHA_MIN and DIST_MIN:
+ * chosen in play so the ground's edge never shows black at the screen's edge. */
+#ifndef FOLLOW_CAM_ALPHA_MIN
 #define FOLLOW_CAM_ALPHA_MIN 150 /* minimum elevation angle */
+#endif
+#ifndef FOLLOW_CAM_ALPHA_MAX
 #define FOLLOW_CAM_ALPHA_MAX 600 /* maximum elevation angle */
-#define FOLLOW_CAM_ALPHA_STEP 5  /* elevation change per numpad +/- key press */
+#endif
+#define FOLLOW_CAM_ALPHA_STEP 5 /* elevation change per numpad +/- key press */
 
 /* Zoom (numpad * / /) — adjusts default arm distance -----------------------*/
-#define FOLLOW_CAM_ZOOM_STEP 200  /* distance change per frame while key held */
-#define FOLLOW_CAM_DIST_MIN 7000  /* closest the player can zoom in (must clear hero mesh) */
+#define FOLLOW_CAM_ZOOM_STEP 200 /* distance change per frame while key held */
+#ifndef FOLLOW_CAM_DIST_MIN
+#define FOLLOW_CAM_DIST_MIN 7000 /* closest the player can zoom in (must clear hero mesh) */
+#endif
+#ifndef FOLLOW_CAM_DIST_MAX
 #define FOLLOW_CAM_DIST_MAX 20000 /* furthest the player can zoom out */
+#endif
 /* Resting arm length: the midpoint of the two VueCamera presets
  * (DefVueDistance[0]=10500, DefVueDistance[1]=17000). Set on the first frame and
  * restored by Center camera, so this is the zoom a player returns to. Unlike the
