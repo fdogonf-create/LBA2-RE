@@ -214,6 +214,7 @@ void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const
     S32 cx, cy;
     S32 x, y;
     S32 n;
+    S32 climb;
 
     (void)palette_rgb;
     if (frameBuffer == NULL OR width == 0 OR height == 0)
@@ -233,6 +234,7 @@ void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const
     if (!ActionHint_Visible((U32)g_platform.system.ticks_ms()))
         return;
 
+    climb = s_label != ACTION_HINT_LABEL_NONE AND(U32)(g_platform.system.ticks_ms() - s_labelMs) <= ACTION_HINT_HOLD_MS;
     radius = (S32)height / 30;
     if (radius < 7)
         radius = 7;
@@ -241,7 +243,7 @@ void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const
     cy = halo + (S32)height / 40;
 
     /* A word beside it moves the button left by the word's width. */
-    if (s_label != ACTION_HINT_LABEL_NONE AND(U32)(g_platform.system.ticks_ms() - s_labelMs) <= ACTION_HINT_HOLD_MS) {
+    if (climb) {
         const U8 *mask = s_label == ACTION_HINT_LABEL_CLIMB_ES ? kLabelClimbEs : kLabelClimbEn;
         S32 w = s_label == ACTION_HINT_LABEL_CLIMB_ES ? kLabelClimbEs_W : kLabelClimbEn_W;
         S32 textH = radius * 3 / 2;
@@ -269,6 +271,7 @@ void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const
     }
 
     /* The button itself, scaled so the drawn disc of the icon is `radius`. */
-    DrawIcon(frameBuffer, pitchPixels, (S32)width, (S32)height, kIconA, cx, cy,
+    /* Climbing is done by pushing the stick up, not with A: show the stick. */
+    DrawIcon(frameBuffer, pitchPixels, (S32)width, (S32)height, climb ? kIconStickUp : kIconA, cx, cy,
              radius * 2 * ACTION_HINT_ICON_W / ACTION_HINT_ICON_DISC);
 }

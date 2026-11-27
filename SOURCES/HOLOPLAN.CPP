@@ -498,6 +498,12 @@ static void HoloPlanFocus(S32 *fx, S32 *fy) {
     *fy = s_viewY + (YpObjectif - s_mapY0) * HOLO_ZOOM_ONE / s_zoom;
 }
 
+/* The name strip at the bottom, as wide as the map, so nothing beside the
+   map (black, or a widescreen map's sides) shows through it. */
+static void HoloPlanDialWindow(void) {
+    HoloInitDialWindowSpan(s_mapX0 + 8, s_mapX0 + IMAGE_AUTHORED_WIDTH - 1 - 8);
+}
+
 void InitHoloPlan() {
     /*	M3D  36 octets, 9 LONG. Load_HQR lands a compressed entry at
         ptrdest + SizeFile - CompressedSizeFile + RECOVER_AREA, so the
@@ -568,7 +574,7 @@ void InitHoloPlan() {
 
     //	To avoid Zoom with Window
     if (!FlagMap)
-        HoloInitDialWindow();
+        HoloPlanDialWindow();
 
     pt = buffer;
 
@@ -975,12 +981,11 @@ static void HoloPlanExtraInput(void) {
 }
 
 void HoloPlan(S32 numplan) {
-    S32 x0, y0, x1, y1;
     S32 testrelease = 0;
     S32 testnofire = TRUE;
     //	U32	mkey=0, mfire=0	;
     //	U32	mjoy=0, dir	;
-    U32 dir, timer;
+    U32 dir;
 
     UnsetClip();
 
@@ -1054,40 +1059,13 @@ void HoloPlan(S32 numplan) {
             //      HoloGlobe()
             BoxReset();
 
-            // Zoom-in animates from the reticule centre (CENTERX/Y are
-            // image-relative) out to the image rect, not the framebuffer
-            // rect. Only the growing box is marked, so everything outside
-            // it, sidebars included, keeps the last globe frame until the
-            // full flip below, as in the original.
-            const S32 anim_imageX0 = ((S32)ModeDesiredX - IMAGE_AUTHORED_WIDTH) / 2;
-            const S32 anim_imageY0 = ((S32)ModeDesiredY - IMAGE_AUTHORED_HEIGHT) / 2;
-            const S32 anim_imageX1 = anim_imageX0 + IMAGE_AUTHORED_WIDTH - 1;
-            const S32 anim_imageY1 = anim_imageY0 + IMAGE_AUTHORED_HEIGHT - 1;
-            while (TRUE) {
-                ManageTime();
-                timer = TimerRefHR - MemoTimerRot;
-                x0 = BoundRegleTrois(CENTERX + anim_imageX0 - 8, anim_imageX0, 1000, timer);
-                y0 = BoundRegleTrois(CENTERY + anim_imageY0 - 8, anim_imageY0, 1000, timer);
-                x1 = BoundRegleTrois(CENTERX + anim_imageX0 + 8, anim_imageX1, 1000, timer);
-                y1 = BoundRegleTrois(CENTERY + anim_imageY0 + 8, anim_imageY1, 1000, timer);
-
-                if (x0 == anim_imageX0) {
-                    break; // Before Crash!
-                }
-
-                ScaleBox(anim_imageX0, anim_imageY0, anim_imageX1, anim_imageY1, BufSpeak, x0, y0, x1, y1, Log);
-
-                AffUpperLeft(x0, y0, 0);
-                AffLowerLeft(x0, y1, 0);
-                AffUpperRight(x1, y0, 0);
-                AffLowerRight(x1, y1, 0);
-
-                BoxStaticAdd(x0, y0, x1, y1); // Optimisable
-                BoxUpdate();
-            }
+            /* A fade instead of the original zoom-in box: the globe has
+               faded out (HoloGlobe), and the whole map, a redrawn one with
+               its widescreen sides too, fades in at once. */
             CopyScreen(BufSpeak, Log);
-            HoloInitDialWindow();
+            HoloPlanDialWindow();
             BoxStaticFullflip();
+            FadeToPal(PtrPal);
             FlagMap = 0;
             //	To avoid Jumping Arrow
             SetTimerHR(MemoTimerRot);

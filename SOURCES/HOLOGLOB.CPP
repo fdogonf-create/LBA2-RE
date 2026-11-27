@@ -1112,6 +1112,8 @@ void HoloGlobe(S32 planet) {
         //----------------------------------------------------------------------------
         if (FlagMap == 1) {
             if (GoToArrow()) {
+                /* The globe fades out; the map fades in (HoloPlan). */
+                FadeToBlack(PtrPal);
                 ClearHoloGlobe();
                 HoloPlan(ZoomedIsland);
                 if (FlagHoloEnd)

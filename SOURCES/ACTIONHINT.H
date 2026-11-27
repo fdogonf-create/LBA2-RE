@@ -40,7 +40,8 @@ extern void ActionHint_Note(U32 nowMs);
 
 /* A word to show beside the button, for a hint that is not plain "talk" or
  * "search": a ladder or a window Twinsen can climb in through. Notes the hint
- * too. The caller picks the language. */
+ * too. The caller picks the language. A climb hint shows the left stick pushed
+ * up instead of the A button, since that is how Twinsen climbs. */
 #define ACTION_HINT_LABEL_NONE 0
 #define ACTION_HINT_LABEL_CLIMB_ES 1 /* "Trepar" */
 #define ACTION_HINT_LABEL_CLIMB_EN 2 /* "Climb" */
