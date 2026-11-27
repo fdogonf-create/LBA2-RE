@@ -23,6 +23,7 @@
 #include <string.h>
 #include <time.h>
 #include <dirent.h>
+#include <SYSTEM/FILES.H> /* WriteFileInBackground */
 #include <SYSTEM/LOADSAVE.H>
 #include <SYSTEM/LOG.H>
 #include <SYSTEM/STRING.H>
@@ -386,6 +387,9 @@ S32 Save_AutoDisabled(void) {
     return AutoSavesDisabled;
 }
 
+/* Set by AutoSaveGame for the SaveGame it makes: write it in the background. */
+static S32 s_saveInBackground = FALSE;
+
 // Version Jeu uniquement
 void AutoSaveGame() {
 #ifndef DEMO
@@ -425,7 +429,9 @@ void AutoSaveGame() {
 
     NumVersion = NUM_VERSION; // Sauvegarde non compactee
 
+    s_saveInBackground = TRUE;
     SaveGame(FALSE);
+    s_saveInBackground = FALSE;
 
     NumVersion = memonumversion;
     strcpy(PlayerName, memoplayername);
@@ -470,7 +476,9 @@ void CurrentSaveGame() {
 
     NumVersion = NUM_VERSION; // Sauvegarde non compactee
 
+    s_saveInBackground = TRUE;
     SaveGame(FALSE);
+    s_saveInBackground = FALSE;
 
     NumVersion = memonumversion;
     strcpy(PlayerName, memoplayername);
@@ -611,7 +619,12 @@ if (NumVersion & SAVE_COMPRESS) // Version compactee
 }
 
 #ifndef EDITLBA2
-written = Save(GamePathname, BufSpeak + 50000L, PtrSave - (BufSpeak + 50000L));
+/* The autosave on a scene change goes to the card behind the game's back
+   (WriteFileInBackground), so walking into a new scene does not stall on it. */
+if (s_saveInBackground)
+    written = WriteFileInBackground(GamePathname, BufSpeak + 50000L, (U32)(PtrSave - (BufSpeak + 50000L)));
+else
+    written = Save(GamePathname, BufSpeak + 50000L, PtrSave - (BufSpeak + 50000L));
 #else
     written = Save(GamePathname, (U8 *)Screen, PtrSave - (U8 *)Screen);
 #endif

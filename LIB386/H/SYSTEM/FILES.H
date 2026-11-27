@@ -58,6 +58,14 @@ S32 WriteFileAtomic(const char *finalPath, const void *buffer, U32 size);
 // holds the temp's content); 0 on failure (destination untouched, temp kept).
 S32 CommitFileAtomic(const char *tempPath, const char *finalPath);
 
+// Write a whole file without making the caller wait for the card, where the
+// platform can (the Switch: a thread writes a copy of `buffer`); elsewhere it
+// is written at once. Any later open of a file waits for it first, and so does
+// the exit. Returns 1 when the write was started or done.
+S32 WriteFileInBackground(const char *filename, const void *buffer, U32 size);
+// Wait for a background write to finish (nothing to do when there is none).
+void WaitBackgroundWrites(void);
+
 U32 Delete(const char *filename);
 // Set a file's modification time to now. No caller in the engine: nothing it
 // ships writes to installed game data. Kept as part of the platform seam, and
