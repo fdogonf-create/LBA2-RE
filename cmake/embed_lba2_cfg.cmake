@@ -28,6 +28,8 @@ if(MODERN_PAD)
         list(GET _kv 1 _key)
         string(REGEX REPLACE "\nGamepad${_slot}: [^\r\n]*" "\nGamepad${_slot}: ${_key}" _text "${_text}")
     endforeach()
+    # Movies fill the screen on a fresh install (LBA2_VIDEO_FULLSCREEN_DEFAULT).
+    string(REGEX REPLACE "\nFullScreen: [^\r\n]*" "\nFullScreen: 2" _text "${_text}")
 endif()
 if(_edit)
     set(INPUT "${OUTPUT}.cfg")

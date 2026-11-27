@@ -52,7 +52,7 @@ lba2.cfg stores user preferences and last-save info. Read at startup, written at
 | FollowCamera | int | 0, 1 | 0 | Auto camera (user-facing name; Enhanced Edition–style third-person follow in exterior). Config key stays `FollowCamera` for stability. 0=classic (default), 1=auto. Also reads legacy key `AutoCameraCenter` |
 | ReverseStereo | int | 0, 1 | 0 | 0=OFF, 1=ON |
 | DetailLevel | int | 0–3 | 3 | 0=min (no rain, no sea, no horizon), 1=486, 2=base Pentium, 3=max. Drives Shadow, RainEnable, MaxPolySea, FlagDrawHorizon |
-| FullScreen | int | 0, 1, 2 | 1 | 0=small videos, 1=fullscreen videos, 2=full-colour replacement movies cover the whole display, cropped to fit (Smacker movies play as 1). Invalid values → 1 |
+| FullScreen | int | 0, 1, 2 | 1 | 0=small videos, 1=fullscreen videos, 2=full-colour replacement movies cover the whole display, cropped to fit (Smacker movies play as 1). Invalid values → the default (2 in the Switch build, `LBA2_VIDEO_FULLSCREEN_DEFAULT`, whose seed cfg also says 2) |
 | DisplayFullScreen | int | 0, 1 | 1 | 0=windowed display, 1=fullscreen display. Invalid values → 0 |
 | FlagDisplayText | string | ON, OFF | ON | Case-insensitive. Any other value → ON |
 | WaveVolume | int | 0–127 | 97 | Sample/SFX volume |
@@ -109,7 +109,7 @@ lba2.cfg stores user preferences and last-save info. Read at startup, written at
 | MenuMouse | Optional mouse UX in game menus (`FlagMenuMouse` in code). Default 1 (on). Set 0 to match classic keyboard/joystick-only menus. See [MENU.md](MENU.md) | ReadConfigFile / WriteConfigFile | Options → Advanced options |
 | FollowCamera | Auto camera for exterior scenes (0=classic, 1=auto). Community addition, not in original game; menu label is "Outdoors: Auto" / "Outdoors: Classic" | ReadConfigFile / WriteConfigFile | Options → Advanced options → Camera |
 | TextureFilter, DitherShading | Software-rasterizer smoothing, both off by default. Console cvars `gfx_texfilter` / `gfx_dither` | ReadConfigFile / WriteConfigFile | Options → Display |
-| PresentFilter | Filter that stretches the frame to the window, nearest by default. Console cvar `gfx_presentfilter` | ReadConfigFile / WriteConfigFile | Options → Display ("Scaling") |
+| PresentFilter | Filter that stretches the frame to the window, nearest by default (smooth + crt in the Switch build, `LBA2_PRESENT_FILTER_DEFAULT`). Console cvar `gfx_presentfilter` | ReadConfigFile / WriteConfigFile | Options → Display ("Scaling") |
 | RetailFixes | Fix retail bugs: 0 no, 1 yes (default), 2 custom. Console cvar `fix_retail`. See "Retail fixes" below | RetailFix_ReadConfig / RetailFix_WriteConfig | Options → Advanced options |
 | RetailFixFoundObjWalk | A direction held through a found-item popup still moves Twinsen afterwards. 1 (default) on. Console cvar `fix_found_obj_walk`. Applies only while `RetailFixes` is 2 | RetailFix_ReadConfig / RetailFix_WriteConfig | console only |
 | RetailFixTerrainSeams | Hairline seams show between the cubes of the outdoor ground. 1 (default) draws the terrain, sea and sky on the 1997 integer path, with no seams and the same on every platform; 0 keeps the float path the rest of the game uses, as lba2cc drew it before. Console cvar `fix_terrain_seams`. Applies only while `RetailFixes` is 2 | RetailFix_ReadConfig / RetailFix_WriteConfig | console only |

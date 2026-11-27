@@ -52,8 +52,16 @@ static S32 StoredTexFilter = 0;
 static S32 EnvTexFilter = -1;
 /* How the frame is filtered when stretched to the window: one of
    PLATFORM_FILTER_*. Only this file reads it; the backend holds the mode in use. */
-static S32 DisplayPresentFilter = PLATFORM_FILTER_NEAREST;
-static S32 StoredPresentFilter = PLATFORM_FILTER_NEAREST;
+/* The Switch build (LBA2_MODERN_PAD_DEFAULT) starts at smooth + crt. */
+#ifndef LBA2_PRESENT_FILTER_DEFAULT
+#if defined(LBA2_MODERN_PAD_DEFAULT) && LBA2_MODERN_PAD_DEFAULT
+#define LBA2_PRESENT_FILTER_DEFAULT PLATFORM_FILTER_SMOOTH_CRT
+#else
+#define LBA2_PRESENT_FILTER_DEFAULT PLATFORM_FILTER_NEAREST
+#endif
+#endif
+static S32 DisplayPresentFilter = LBA2_PRESENT_FILTER_DEFAULT;
+static S32 StoredPresentFilter = LBA2_PRESENT_FILTER_DEFAULT;
 static S32 EnvPresentFilter = -1;
 static S32 StoredFixedTimestep = 16;
 static S32 StoredLanguage = 0;
@@ -164,7 +172,7 @@ static const T_SETTING BootSettings[] = {
     {"FollowCamera", "AutoCameraCenter", NULL, &FollowCamera, SETTING_OR_DEFAULT, LBA2_FOLLOW_CAMERA_DEFAULT, 0, 1, NULL, NULL, NULL},
     {"DetailLevel", NULL, NULL, &DetailLevel, SETTING_CLAMP, MAX_DETAIL_LEVEL, 0, MAX_DETAIL_LEVEL, NULL, NULL,
      ApplyDetailLevel},
-    {"FullScreen", NULL, NULL, &VideoFullScreen, SETTING_OR_DEFAULT, TRUE, 0, 2, NULL, NULL, NULL, NULL, NULL,
+    {"FullScreen", NULL, NULL, &VideoFullScreen, SETTING_OR_DEFAULT, LBA2_VIDEO_FULLSCREEN_DEFAULT, 0, 2, NULL, NULL, NULL, NULL, NULL,
      SETTING_NOT_RECORDED},
     {"DisplayFullScreen", NULL, NULL, &DisplayFullScreen, SETTING_OR_DEFAULT, TRUE, 0, 1, NULL, NULL, NULL, NULL, NULL,
      SETTING_NOT_RECORDED},
@@ -175,7 +183,7 @@ static const T_SETTING BootSettings[] = {
     {"TextureFilter", NULL, "gfx_texfilter", &PolyTexFilter, SETTING_OR_DEFAULT, POLY_TEX_FILTER_OFF,
      POLY_TEX_FILTER_OFF, POLY_TEX_FILTER_BILINEAR, &StoredTexFilter, ForcedTexFilter, NULL, &SourceTexFilter,
      "Texture filtering: 0 off, 1 horizontal, 2 bilinear", SETTING_NOT_RECORDED},
-    {"PresentFilter", NULL, "gfx_presentfilter", &DisplayPresentFilter, SETTING_OR_DEFAULT, PLATFORM_FILTER_NEAREST,
+    {"PresentFilter", NULL, "gfx_presentfilter", &DisplayPresentFilter, SETTING_OR_DEFAULT, LBA2_PRESENT_FILTER_DEFAULT,
      PLATFORM_FILTER_NEAREST, PLATFORM_FILTER_SMOOTH_CRT, &StoredPresentFilter, ForcedPresentFilter, ApplyPresentFilter,
      &SourcePresentFilter, "Filter stretching the frame to the window: 0 nearest, 1 linear, 2 pixelart, 3 smooth, 4 crt, 5 smooth+crt",
      SETTING_NOT_RECORDED},
