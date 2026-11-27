@@ -64,6 +64,8 @@ In the buggy (`MOVE_BUGGY_MANUAL`) ZR accelerates and ZL brakes and reverses (`A
 
 In menus the Switch's A and B are remapped whatever they are bound to in play, and a button still held across the change waits for its release. The build writes `GamepadLayout: 2` beside the pad bindings; a cfg without it was written under an earlier layout, and its pad bindings give way to the defaults once.
 
+Whenever the game writes its settings or a save, "Guardando" / "Saving" shows for a moment in the bottom-right corner with a turning icon (`ActionHint_NoteSaving` in [ACTIONHINT.H](../SOURCES/ACTIONHINT.H)). The icon is `hd/guardando.png` beside the game data (`sdmc:/lba2/hd/` on the Switch) when there is one: a PNG with transparency holding a horizontal strip of square frames, each frame as tall as the picture (for example 8 frames of 64x64 in a 512x64 picture), played at 12 frames a second. Without it, a ring of dots turns. The settings are written when an options page closes and when HOME takes the focus, not on every choice.
+
 ## Manual camera (Auto camera mode)
 
 In exterior scenes with Auto camera (`FollowCamera`) on, the player can orbit,

@@ -3288,9 +3288,10 @@ S32 DoGameMenu(U16 *ptrmenu) {
 /*══════════════════════════════════════════════════════════════════════════*/
 /*──────────────────────────────────────────────────────────────────────────*/
 
-/* Write the config before each pass of an options page's loop, so a choice is
-   kept the moment it is made: a console's system menu can close the game while
-   a page is still open, and nothing written at its close would then run. */
+/* Write the config as an options page closes, so its choices are kept even if
+   the game is then closed from the console's menu (HOME with a page still open
+   is covered by the save on suspend). Once per page, not per choice: writing to
+   the SD card on every press made the menus slow. */
 static void KeepMenuChoices(void) {
     WriteConfigFile();
 }
@@ -3323,7 +3324,6 @@ S32 GereVolumeMenu(void) {
 #endif
 
     while (!flag) {
-        KeepMenuChoices();
         select = DoGameMenu(VolumeMenu);
 
         switch (select) // num mess
@@ -3334,6 +3334,8 @@ S32 GereVolumeMenu(void) {
             break;
         }
     }
+
+    KeepMenuChoices();
 
     SetVolumeJingle(JingleVolume);
 
@@ -3368,7 +3370,6 @@ S32 GereLanguageMenu(void) {
     }
 
     while (!flag) {
-        KeepMenuChoices();
         select = DoGameMenu(LanguageMenu);
 
         switch (select) {
@@ -3546,7 +3547,6 @@ static S32 GereResolutionMenu(void) {
     }
 
     while (!flag) {
-        KeepMenuChoices();
         select = DoGameMenu(ResolutionMenu);
 
         if (select == 26 || select == 1000) {
@@ -3596,7 +3596,6 @@ S32 GereDisplayMenu(void) {
     }
 
     while (!flag) {
-        KeepMenuChoices();
         select = DoGameMenu(DisplayMenu);
 
         switch (select) {
@@ -3631,6 +3630,8 @@ S32 GereDisplayMenu(void) {
         }
     }
 
+    KeepMenuChoices();
+
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
 
@@ -3655,7 +3656,6 @@ S32 GereCameraMenu(void) {
     }
 
     while (!flag) {
-        KeepMenuChoices();
         select = DoGameMenu(CameraMenu);
 
         switch (select) {
@@ -3673,6 +3673,8 @@ S32 GereCameraMenu(void) {
             break;
         }
     }
+
+    KeepMenuChoices();
 
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
@@ -3696,7 +3698,6 @@ S32 GereAdvancedOptionsMenu(void) {
     }
 
     while (!flag) {
-        KeepMenuChoices();
         select = DoGameMenu(AdvancedOptionMenu);
 
         switch (select) {
@@ -3762,7 +3763,6 @@ S32 GereControllerMenu(void) {
     }
 
     while (!flag) {
-        KeepMenuChoices();
         select = DoGameMenu(ControllerMenu);
 
         switch (select) {
@@ -3780,6 +3780,8 @@ S32 GereControllerMenu(void) {
             break;
         }
     }
+
+    KeepMenuChoices();
 
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
@@ -3863,7 +3865,6 @@ static S32 GereVideotecaMenu(S32 startPage) {
 
     while (!flag) {
         BuildVideotecaMenu();
-        KeepMenuChoices();
         const S32 select = DoGameMenu(VideotecaMenu);
         const S32 pages = VideotecaPages();
 
@@ -3892,6 +3893,8 @@ static S32 GereVideotecaMenu(S32 startPage) {
             }
         }
     }
+
+    KeepMenuChoices();
 
     s_vtTotal = 0;
     s_vtSeen = 0;
@@ -3993,7 +3996,6 @@ S32 OptionsMenu(S32 flagflip) {
     MenuMouseAcquire();
 
     while (!flag) {
-        KeepMenuChoices();
         select = DoGameMenu(GameOptionMenu);
 
         switch (select) // num mess

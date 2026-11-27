@@ -512,6 +512,7 @@ static void WriteOwnedConfig(void) {
 /*──────────────────────────────────────────────────────────────────────────*/
 void WriteConfigFile(void) {
     WriteOwnedConfig();
+    ActionHint_NoteSaving((U32)g_platform.system.ticks_ms(), Language == 3);
     /* Reads after this point see what the boot assembled, which matters because
        this is also called mid-run: the options menu and a resolution switch. */
     RestackDataConfig();

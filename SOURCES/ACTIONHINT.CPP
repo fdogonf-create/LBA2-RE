@@ -2,6 +2,9 @@
 
 #include <PLATFORM/PLATFORM.H>
 
+#include "DIRECTORIES.H"
+#include <FILEIO/LOADPNG.H>
+
 #include "ACTIONHINT_ICON.H"
 #include "ACTIONHINT_LABEL.H"
 
@@ -207,6 +210,112 @@ static const U32 *PromptIcon(S32 which) {
     }
 }
 
+/*──────────────────────────────────────────────────────────────────────────*/
+/* The "saving" indicator. */
+static U32 s_savingMs = 0;
+static S32 s_savingNoted = 0;
+static S32 s_savingSpanish = 1;
+static U32 *s_savingSheet = NULL; /* hd/guardando.png, ARGB */
+static S32 s_savingW = 0, s_savingH = 0;
+static S32 s_savingLoaded = 0;
+
+void ActionHint_NoteSaving(U32 nowMs, S32 spanish) {
+    if (!s_savingLoaded) {
+        char path[ADELINE_MAX_PATH];
+        s_savingLoaded = 1;
+        GetResPath(path, ADELINE_MAX_PATH, "hd/guardando.png");
+        s_savingSheet = LoadPNG_ARGB(path, &s_savingW, &s_savingH);
+        if (s_savingSheet != NULL AND(s_savingW <= 0 OR s_savingH <= 0 OR s_savingW < s_savingH)) {
+            FreePNG(s_savingSheet);
+            s_savingSheet = NULL;
+        }
+    }
+    s_savingMs = nowMs;
+    s_savingNoted = 1;
+    s_savingSpanish = spanish;
+}
+
+/* One frame of the strip (frame `frame`, square, `s_savingH` a side) scaled
+   to `size` pixels square with its top-left at (x0, y0). */
+static void DrawSavingFrame(U32 *frameBuffer, S32 pitchPixels, S32 width, S32 height, S32 frame, S32 x0, S32 y0,
+                            S32 size) {
+    const S32 side = s_savingH;
+    S32 x, y;
+
+    for (y = 0; y < size; y++) {
+        const S32 py = y0 + y;
+        const S32 sy = y * side / size;
+        if (py < 0 OR py >= height)
+            continue;
+        for (x = 0; x < size; x++) {
+            const S32 px = x0 + x;
+            const S32 sx = frame * side + x * side / size;
+            U32 c, a;
+            if (px < 0 OR px >= width OR sx >= s_savingW)
+                continue;
+            c = s_savingSheet[(size_t)sy * s_savingW + sx];
+            a = c >> 24;
+            if (a)
+                Blend(&frameBuffer[py * pitchPixels + px], (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF, a);
+        }
+    }
+}
+
+/* No picture: a ring of eight dots, one bright, going round. */
+static void DrawSavingDots(U32 *frameBuffer, S32 pitchPixels, S32 width, S32 height, U32 elapsed, S32 cx, S32 cy,
+                           S32 size) {
+    const S32 lead = (S32)((elapsed * 10 / 1000) % 8);
+    const double ring = size * 0.36, dot = size * 0.11;
+    S32 i, x, y;
+
+    for (i = 0; i < 8; i++) {
+        const double ang = i * 3.14159265358979 / 4.0;
+        const double dx0 = cx + ring * sin(ang), dy0 = cy - ring * cos(ang);
+        const S32 age = (lead - i + 8) % 8;
+        const U32 level = 255 - (U32)age * 26;
+        for (y = (S32)(dy0 - dot - 2); y <= (S32)(dy0 + dot + 2); y++) {
+            if (y < 0 OR y >= height)
+                continue;
+            for (x = (S32)(dx0 - dot - 2); x <= (S32)(dx0 + dot + 2); x++) {
+                U32 a;
+                if (x < 0 OR x >= width)
+                    continue;
+                a = DiscCoverage(sqrt((x + 0.5 - dx0) * (x + 0.5 - dx0) + (y + 0.5 - dy0) * (y + 0.5 - dy0)), dot);
+                if (a)
+                    Blend(&frameBuffer[y * pitchPixels + x], level, level, level, a);
+            }
+        }
+    }
+}
+
+static void DrawSaving(U32 *frameBuffer, S32 pitchPixels, S32 width, S32 height) {
+    const U32 elapsed = (U32)(g_platform.system.ticks_ms() - s_savingMs);
+    const U8 *mask = s_savingSpanish ? kLabelSavingEs : kLabelSavingEn;
+    const S32 w = s_savingSpanish ? kLabelSavingEs_W : kLabelSavingEn_W;
+    S32 size, margin, textH, textW, cx, cy;
+
+    if (!s_savingNoted OR elapsed > ACTION_HINT_SAVING_MS)
+        return;
+    size = height / 11;
+    if (size < 16)
+        size = 16;
+    margin = height / 30;
+    textH = size / 2;
+    textW = w * textH / ACTION_HINT_LABEL_H;
+    cy = height - margin - size / 2;
+    cx = width - margin - textW - size / 4 - size / 2;
+    if (s_savingSheet != NULL) {
+        const S32 frames = s_savingW / s_savingH;
+        DrawSavingFrame(frameBuffer, pitchPixels, width, height,
+                        (S32)((elapsed * ACTION_HINT_SAVING_FPS / 1000) % (U32)frames), cx - size / 2, cy - size / 2,
+                        size);
+    } else {
+        DrawSavingDots(frameBuffer, pitchPixels, width, height, elapsed, cx, cy, size);
+    }
+    DrawLabel(frameBuffer, pitchPixels, width, height, mask, w, ACTION_HINT_LABEL_H, cx + size / 2 + size / 4, cy,
+              textH);
+}
+
 void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const U8 *palette_rgb) {
     S32 pitchPixels;
     S32 radius;
@@ -230,6 +339,8 @@ void ActionHint_Render(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const
                  (S32)((S64)pr->x * (S32)width / pr->canvasW), (S32)((S64)pr->y * (S32)height / pr->canvasH),
                  (S32)((S64)pr->size * (S32)height / pr->canvasH));
     }
+
+    DrawSaving(frameBuffer, pitchPixels, (S32)width, (S32)height);
 
     if (!ActionHint_Visible((U32)g_platform.system.ticks_ms()))
         return;

@@ -33,6 +33,8 @@
 
 #include "SAVEGAME_WIRE.H" // wire structs + FromWire32 / ToWire32 converters
 #include "AMBIANCE.H"
+#include "ACTIONHINT.H" /* the "saving" indicator */
+#include <PLATFORM/PLATFORM.H>
 
 extern char PlayerName[MAX_SIZE_PLAYER_NAME + 1];
 
@@ -619,8 +621,10 @@ written = Save(GamePathname, BufSpeak + 50000L, PtrSave - (BufSpeak + 50000L));
 // debug` / `loglevel debug`. Covers every save path: AutoSaveGame
 // (autosave.lba), CurrentSaveGame (current.lba), and the menu's named saves --
 // GamePathname distinguishes which, NumCube which scene.
-if (written)
+if (written) {
     Log_Debug("save: wrote \"%s\" (cube %d)", GamePathname, (int)NumCube);
+    ActionHint_NoteSaving((U32)g_platform.system.ticks_ms(), Language == 3);
+}
 return written;
 }
 

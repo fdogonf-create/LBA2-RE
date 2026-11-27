@@ -47,6 +47,16 @@ extern void ActionHint_Note(U32 nowMs);
 #define ACTION_HINT_LABEL_CLIMB_EN 2 /* "Climb" */
 extern void ActionHint_NoteLabel(U32 nowMs, S32 label);
 
+/* The game has just written something to the card (its settings, a save):
+ * show "Guardando" / "Saving" with a turning icon in the bottom-right corner
+ * for a moment. The icon is hd/guardando.png beside the game data when there
+ * is one: a horizontal strip of square frames (each frame as tall as the
+ * picture), played at ACTION_HINT_SAVING_FPS; otherwise a ring of dots.
+ * `spanish` picks the word. Shown whatever GamepadActionHint says. */
+#define ACTION_HINT_SAVING_MS 1500
+#define ACTION_HINT_SAVING_FPS 12
+extern void ActionHint_NoteSaving(U32 nowMs, S32 spanish);
+
 /* Whether the hint is up at `nowMs`. */
 extern S32 ActionHint_Visible(U32 nowMs);
 
