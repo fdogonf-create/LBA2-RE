@@ -22,6 +22,8 @@
 #include "JOYSTICK.H"
 #include "ANALOGMOVE.H" /* D-pad zoom and the right stick's response curve */
 #include "BOOT_EXIT.H"
+#include "CAMHUD.H"
+#include <PLATFORM/PLATFORM.H>
 #include "MOUSE_CAPTURE.H"
 
 extern S32 Nxw, Nyw, Nzw;
@@ -2479,6 +2481,11 @@ S32 GereExtKeys(U32 key)
             if (dpadZoom != 0)
                 flag |= ApplyManualCameraNudge(0, 0, dpadZoom);
         }
+
+        /* Tester readout of the camera (CAMHUD.H), while tester_camara.txt is there. */
+        if (CubeMode == CUBE_EXTERIEUR AND CamHud_Enabled())
+            CamHud_Note((U32)g_platform.system.ticks_ms(), AlphaCam, FOLLOW_CAM_ALPHA_MIN, FOLLOW_CAM_ALPHA_MAX,
+                        FollowCamBaseDist, FOLLOW_CAM_DIST_MIN, FOLLOW_CAM_DIST_MAX, AddBetaCam, Island, NumCube);
 
         /* Console `camnudge`: stand in for the stick/mouse so a headless run can
          * drive the analog camera. Same nudge entry point and same point in the

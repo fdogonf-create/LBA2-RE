@@ -37,6 +37,7 @@ extern S32 GfxDitherShading;
 #include <SVGA/SCREEN.H>
 #include <SYSTEM/KEYBOARD_KEYS.H>
 #include "ACTIONHINT.H" /* ActionHint_Render, after the touch overlay */
+#include "CAMHUD.H"    /* CamHud_Render, the tester camera readout */
 #include "FOLLOWCAM.H"
 #include "FOLLOWCAM_CFG.H"  /* the *_DEFAULT tunables, read and written by the cfg below */
 #include "FOLLOWCAM_MATH.H" /* FollowCamIsoStep: one frame of the interior follow */
@@ -2229,6 +2230,7 @@ void Message(const char *mess, S32 flag) {
 static void OverlayPrePresent(U32 *frameBuffer, U32 pitch, U32 width, U32 height, const U8 *palette_rgb) {
     TouchOverlay_Render(frameBuffer, pitch, width, height, palette_rgb);
     ActionHint_Render(frameBuffer, pitch, width, height, palette_rgb);
+    CamHud_Render(frameBuffer, pitch, width, height, palette_rgb);
 }
 
 /* A suspended app may be ended by the system with no exit, so TheEndInfo's

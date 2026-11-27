@@ -93,3 +93,7 @@ Indoors the view is the original isometric one, and it moves only when Twinsen n
 - [CONSOLE.md](CONSOLE.md): the console, and `camtrace` for logging what the camera does.
 - [CONFIG.md](CONFIG.md): `lba2.cfg`.
 - [CAMERA_INTERNALS.md](CAMERA_INTERNALS.md): how it works, for contributors.
+
+## Tester readout (temporary)
+
+While a file named `tester_camara.txt` sits beside the game data (`sdmc:/lba2/` on the Switch), the top-left corner shows the outdoor Auto camera's height (`AlphaCam`, with `FOLLOW_CAM_ALPHA_MIN`..`MAX`), its chosen distance (`FollowCamBaseDist`, with `FOLLOW_CAM_DIST_MIN`..`MAX`), its turn (`AddBetaCam`) and the island and scene, so comfortable limits can be read off in play ([CAMHUD.CPP](../SOURCES/CAMHUD.CPP)). It is meant to be removed once the limits are set.
