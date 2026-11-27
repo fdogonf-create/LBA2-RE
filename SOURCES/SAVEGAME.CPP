@@ -23,6 +23,7 @@
 #include <string.h>
 #include <time.h>
 #include <dirent.h>
+#include <SYSTEM/FILES.H> /* WriteFileInBackground */
 #include <SYSTEM/LOADSAVE.H>
 #include <SYSTEM/LOG.H>
 #include <SYSTEM/STRING.H>
@@ -33,6 +34,8 @@
 
 #include "SAVEGAME_WIRE.H" // wire structs + FromWire32 / ToWire32 converters
 #include "AMBIANCE.H"
+#include "ACTIONHINT.H" /* the "saving" indicator */
+#include <PLATFORM/PLATFORM.H>
 
 extern char PlayerName[MAX_SIZE_PLAYER_NAME + 1];
 
@@ -384,6 +387,9 @@ S32 Save_AutoDisabled(void) {
     return AutoSavesDisabled;
 }
 
+/* Set by AutoSaveGame for the SaveGame it makes: write it in the background. */
+static S32 s_saveInBackground = FALSE;
+
 // Version Jeu uniquement
 void AutoSaveGame() {
 #ifndef DEMO
@@ -423,7 +429,9 @@ void AutoSaveGame() {
 
     NumVersion = NUM_VERSION; // Sauvegarde non compactee
 
+    s_saveInBackground = TRUE;
     SaveGame(FALSE);
+    s_saveInBackground = FALSE;
 
     NumVersion = memonumversion;
     strcpy(PlayerName, memoplayername);
@@ -468,7 +476,9 @@ void CurrentSaveGame() {
 
     NumVersion = NUM_VERSION; // Sauvegarde non compactee
 
+    s_saveInBackground = TRUE;
     SaveGame(FALSE);
+    s_saveInBackground = FALSE;
 
     NumVersion = memonumversion;
     strcpy(PlayerName, memoplayername);
@@ -609,7 +619,12 @@ if (NumVersion & SAVE_COMPRESS) // Version compactee
 }
 
 #ifndef EDITLBA2
-written = Save(GamePathname, BufSpeak + 50000L, PtrSave - (BufSpeak + 50000L));
+/* The autosave on a scene change goes to the card behind the game's back
+   (WriteFileInBackground), so walking into a new scene does not stall on it. */
+if (s_saveInBackground)
+    written = WriteFileInBackground(GamePathname, BufSpeak + 50000L, (U32)(PtrSave - (BufSpeak + 50000L)));
+else
+    written = Save(GamePathname, BufSpeak + 50000L, PtrSave - (BufSpeak + 50000L));
 #else
     written = Save(GamePathname, (U8 *)Screen, PtrSave - (U8 *)Screen);
 #endif
@@ -619,8 +634,10 @@ written = Save(GamePathname, BufSpeak + 50000L, PtrSave - (BufSpeak + 50000L));
 // debug` / `loglevel debug`. Covers every save path: AutoSaveGame
 // (autosave.lba), CurrentSaveGame (current.lba), and the menu's named saves --
 // GamePathname distinguishes which, NumCube which scene.
-if (written)
+if (written) {
     Log_Debug("save: wrote \"%s\" (cube %d)", GamePathname, (int)NumCube);
+    ActionHint_NoteSaving((U32)g_platform.system.ticks_ms(), Language == 3);
+}
 return written;
 }
 

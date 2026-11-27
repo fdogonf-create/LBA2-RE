@@ -3288,6 +3288,14 @@ S32 DoGameMenu(U16 *ptrmenu) {
 /*══════════════════════════════════════════════════════════════════════════*/
 /*──────────────────────────────────────────────────────────────────────────*/
 
+/* Write the config as an options page closes, so its choices are kept even if
+   the game is then closed from the console's menu (HOME with a page still open
+   is covered by the save on suspend). Once per page, not per choice: writing to
+   the SD card on every press made the menus slow. */
+static void KeepMenuChoices(void) {
+    WriteConfigFile();
+}
+
 S32 GereVolumeMenu(void) {
     S32 select;
     S32 flag = 0;
@@ -3326,6 +3334,8 @@ S32 GereVolumeMenu(void) {
             break;
         }
     }
+
+    KeepMenuChoices();
 
     SetVolumeJingle(JingleVolume);
 
@@ -3620,6 +3630,8 @@ S32 GereDisplayMenu(void) {
         }
     }
 
+    KeepMenuChoices();
+
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
 
@@ -3661,6 +3673,8 @@ S32 GereCameraMenu(void) {
             break;
         }
     }
+
+    KeepMenuChoices();
 
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
@@ -3766,6 +3780,8 @@ S32 GereControllerMenu(void) {
             break;
         }
     }
+
+    KeepMenuChoices();
 
     CopyScreen(Screen, Log);
     BoxStaticAdd(0, 0, ModeDesiredX - 1, ModeDesiredY - 1);
@@ -3877,6 +3893,8 @@ static S32 GereVideotecaMenu(S32 startPage) {
             }
         }
     }
+
+    KeepMenuChoices();
 
     s_vtTotal = 0;
     s_vtSeen = 0;

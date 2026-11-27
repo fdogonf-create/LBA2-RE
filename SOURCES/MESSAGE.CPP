@@ -1685,8 +1685,16 @@ void NextDialWindow() {
 }
 /*-------------------------------------------------------------------------*/
 //      Utilise pour HoloGlobe et HoloPlan ( sans AffScene ni clip box )
-void HoloInitDialWindow() {
+void HoloInitDialWindow() { HoloInitDialWindowSpan(-1, -1); }
+
+/* The same, between columns x0 and x1 of the screen (-1: the usual width). */
+void HoloInitDialWindowSpan(S32 x0, S32 x1) {
     HoloWinDial();
+    if (x0 >= 0 AND x1 > x0 + 32) {
+        Dial_X0 = x0;
+        Dial_X1 = x1;
+        DialMaxSize = ((Dial_X1 - 8) - (Dial_X0 + 8));
+    }
 
     BackupAngles(Dial_X0, Dial_Y0, Dial_X1, Dial_Y1);
     ShadeBoxBlk(Dial_X0 + 1, Dial_Y0 + 1, Dial_X1 - 1, Dial_Y1 - 1, 8);

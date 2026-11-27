@@ -32,7 +32,7 @@ ignores it, because a recording does not carry the stick's raw axes.
 |-----|---------|---------|-------------|
 | `GamepadAnalogMove` | `pad_analog_move` | 0 (1 on Switch) | left stick walks Twinsen the way it points; 0 = original tank controls |
 | `GamepadDpadZoom` | `pad_dpad_zoom` | 0 (1 on Switch) | D-pad up / down zoom the Auto camera in / out; the distance holds until changed and is saved (`cam_distance`) |
-| `GamepadActionHint` | `pad_action_hint` | 0 (1 on Switch) | A small A button in the top-right corner while the action button would do something: a script of something close in front of Twinsen asking for action, a bonus zone not yet taken, a message zone. It is the script's own question, so it can show for something that answers only at some point of the story |
+| `GamepadActionHint` | `pad_action_hint` | 0 (1 on Switch) | A small A button in the top-right corner while the action button would do something: a script of something close in front of Twinsen asking for action, a bonus zone not yet taken, a message zone; at a ladder or a window, the left stick pushed up and "Trepar" / "Climb". It is the script's own question, so it can show for something that answers only at some point of the story |
 | `GamepadBehaviourCycle` | `pad_cycle_behaviour` | 0 (1 on Switch) | a tap of ZL steps normal, sporty, aggressive, discreet and round again |
 | `GamepadCameraCurve` | `cam_stick_curve` | 0 (1 on Switch) | right stick ramps squared, so a small tilt turns the camera gently |
 
@@ -52,7 +52,7 @@ A build with `LBA2_MODERN_PAD_DEFAULT` (the Switch preset) binds the pad by the 
 | A | Talk, search, open (`I_ACTION_ALWAYS`) | Confirm (`I_RETURN`) |
 | B | Throw the weapon (`I_THROW`) | Back (`I_MENUS`) |
 | X | The behaviour's action (`I_ACTION_M`) | |
-| Y | Holomap | On an island map: L / R show the previous / next known island (only to look) |
+| Y | Holomap | On an island map: L / R show the previous / next known island (only to look), right stick zooms |
 | L / ZL | Behaviour menu / next behaviour | |
 | R | Quick item menu (`MenuQuickInventory`, `pad_quick_menu`) | Closes it |
 | ZR | Protection spell | |
@@ -63,6 +63,8 @@ A build with `LBA2_MODERN_PAD_DEFAULT` (the Switch preset) binds the pad by the 
 In the buggy (`MOVE_BUGGY_MANUAL`) ZR accelerates and ZL brakes and reverses (`AnalogMove_ApplyBuggy`), and the left stick steers; out of it they go back to the jobs above. On a ladder the stick's up and down climb and come down; standing at a ladder or a window you climb in through, walking into the wall starts the climb, and pulling the stick away steps him back instead of turning him round. With the action hint on, the hint there reads "Trepar" / "Climb" (`ActionHint_NoteLabel`), and A turns him to the wall and starts the climb (`ClimbByAction` in `OBJECT.CPP`). The words are drawn from `ACTIONHINT_LABEL.H`, made by `scripts/dev/gen_action_hint_label.py`.
 
 In menus the Switch's A and B are remapped whatever they are bound to in play, and a button still held across the change waits for its release. The build writes `GamepadLayout: 2` beside the pad bindings; a cfg without it was written under an earlier layout, and its pad bindings give way to the defaults once.
+
+Whenever the game writes its settings or a save, "Guardando" / "Saving" shows for a moment in the bottom-right corner with a turning icon (`ActionHint_NoteSaving` in [ACTIONHINT.H](../SOURCES/ACTIONHINT.H)). The icon is `hd/guardando.png` beside the game data (`sdmc:/lba2/hd/` on the Switch) when there is one: a PNG with transparency holding a horizontal strip of square frames, each frame as tall as the picture (for example 8 frames of 64x64 in a 512x64 picture), played at 12 frames a second. Without it, a ring of dots turns. The settings are written when an options page closes and when HOME takes the focus, not on every choice.
 
 ## Manual camera (Auto camera mode)
 

@@ -8,7 +8,9 @@
  * scripts/holomap_export.py names them) is shown in place of the 640x480
  * indexed map, at the screen's own resolution, by a backend that can
  * (PlatformBackdrop); the arrows, Twinsen and the text stay drawn over it.
- * Without the file, or on a backend that cannot, the original map shows. */
+ * A picture wider than 4:3 (a widescreen map) has the map in its middle 4:3,
+ * which stands where the original does; the rest shows in the screen's side
+ * bars. Without the file, or on a backend that cannot, the original map shows. */
 
 /* Load the redrawn map `entry`, if there is one, for a map shown at (x0, y0)
  * in Log; `palette` (768 bytes) is the one it is shown in once faded in.

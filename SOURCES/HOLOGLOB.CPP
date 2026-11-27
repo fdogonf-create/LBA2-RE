@@ -1112,6 +1112,8 @@ void HoloGlobe(S32 planet) {
         //----------------------------------------------------------------------------
         if (FlagMap == 1) {
             if (GoToArrow()) {
+                /* The globe fades out; the map fades in (HoloPlan). */
+                FadeToBlack(PtrPal);
                 ClearHoloGlobe();
                 HoloPlan(ZoomedIsland);
                 if (FlagHoloEnd)
@@ -1227,45 +1229,6 @@ void InitHoloMap() {
         FromLE32InPlace(&TabArrow[a], 7);
 }
 /*══════════════════════════════════════════════════════════════════════════*/
-/* TEMPORARY tester switch, to check redrawn maps: while a file named
-   tester_holomapa.txt sits beside the game data (sdmc:/lba2/ on the Switch),
-   the holomap shows every island and every place marked on it, as if all had
-   been found. Only for the holomap's duration: the game's own record of what
-   was found is put back when it closes, so saves are not touched. */
-static U8 s_testerSaved[MAX_OBJECTIF + MAX_CUBE];
-static S32 s_testerOn = FALSE;
-
-static void HoloTesterBegin(void) {
-    char path[ADELINE_MAX_PATH];
-    FILE *f;
-    S32 i;
-
-    s_testerOn = FALSE;
-    GetResPath(path, ADELINE_MAX_PATH, "tester_holomapa.txt");
-    f = fopen(path, "rb");
-    if (f == NULL)
-        return;
-    fclose(f);
-    s_testerOn = TRUE;
-    for (i = 0; i < MAX_OBJECTIF + MAX_CUBE; i++)
-        s_testerSaved[i] = TabArrow[i].FlagHolo;
-    for (i = MAX_OBJECTIF; i < MAX_OBJECTIF + MAX_CUBE; i++) {
-        const T_ARROW *pt = &TabArrow[i];
-        /* Only places that are real arrows: on an island, somewhere. */
-        if (pt->Island < MAX_ISLAND AND(pt->X != 0 OR pt->Z != 0))
-            TabArrow[i].FlagHolo |= 1;
-    }
-}
-
-static void HoloTesterEnd(void) {
-    S32 i;
-    if (!s_testerOn)
-        return;
-    for (i = 0; i < MAX_OBJECTIF + MAX_CUBE; i++)
-        TabArrow[i].FlagHolo = s_testerSaved[i];
-    s_testerOn = FALSE;
-}
-
 void HoloMap() {
     S32 flagproto = FALSE;
 
@@ -1339,8 +1302,6 @@ void HoloMap() {
     SizeRet = 128; // Replace by Regle 3 Timer
     MemoTimerRet = TimerRefHR;
 
-    HoloTesterBegin();
-
     if (HoloMode == 1)
         HoloPlan(Island);
 
@@ -1351,8 +1312,6 @@ void HoloMap() {
 
     //	Free( BufAnimTempo )	;
     //	Free( BufBodyTempo )	;
-
-    HoloTesterEnd();
 
     InitDial(START_FILE_ISLAND + Island);
 

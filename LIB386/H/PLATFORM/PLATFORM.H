@@ -101,6 +101,10 @@ typedef struct PlatformBackdrop {
     const uint8_t *key_palette;
     uint32_t serial; /* changes whenever argb's contents do */
     int32_t src_x, src_y, src_w, src_h;
+    /* Nonzero: the picture also has more of itself left and right of the
+       src_* part (a widescreen map), which a backend may show in the bars
+       beside the frame, at the same scale, as far as the picture reaches. */
+    int32_t spill;
 } PlatformBackdrop;
 
 typedef struct PlatformFrame {

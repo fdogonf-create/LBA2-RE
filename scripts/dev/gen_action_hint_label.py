@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 FONT = sys.argv[1] if len(sys.argv) > 1 else "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 SIZE = 28
-LABELS = [("kLabelClimbEs", "Trepar"), ("kLabelClimbEn", "Climb")]
+LABELS = [("kLabelClimbEs", "Trepar"), ("kLabelClimbEn", "Climb"), ("kLabelSavingEs", "Guardando"), ("kLabelSavingEn", "Saving")]
 
 font = ImageFont.truetype(FONT, SIZE)
 ascent, descent = font.getmetrics()

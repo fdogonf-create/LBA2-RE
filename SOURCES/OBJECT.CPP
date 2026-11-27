@@ -1171,6 +1171,10 @@ void ChangeCube() {
     T_OBJET *ptrobj = &ListObjet[NUM_PERSO];
     S32 oldcube;
     S32 flagload;
+    /* How long each step of the change takes, for the log (a stall here is
+       what a player feels as the game catching on a scene change). */
+    const U32 tStart = (U32)g_platform.system.ticks_ms();
+    U32 tScene, tGrid;
 
     APtObj = ptrobj;
 
@@ -1251,6 +1255,7 @@ void ChangeCube() {
 
     // lance usine
     LoadScene(NewCube);
+    tScene = (U32)g_platform.system.ticks_ms();
 
     /* CubeMode is only known once the scene header is parsed, and the buffers
        resized here have to be in place before InitGrille fills them below. */
@@ -1270,6 +1275,7 @@ void ChangeCube() {
     // load gri
 
     PtrInitGrille(NewCube); /*	HQR	*/
+    tGrid = (U32)g_platform.system.ticks_ms();
 
     ManageSystem(); // for streaming
 
@@ -1458,6 +1464,13 @@ void ChangeCube() {
 
     LastValidePos = ValidePos = FALSE;
     ptrobj->CarryBy = -1;
+
+    {
+        const U32 tEnd = (U32)g_platform.system.ticks_ms();
+        Log_Info("[timing] cube %d -> %d: scene %u ms, island/grid %u ms, the rest %u ms, total %u ms", (int)oldcube,
+                 (int)NumCube, (unsigned)(tScene - tStart), (unsigned)(tGrid - tScene), (unsigned)(tEnd - tGrid),
+                 (unsigned)(tEnd - tStart));
+    }
 }
 
 /*══════════════════════════════════════════════════════════════════════════*
@@ -6338,7 +6351,10 @@ startaffscene:
         // crossings, Life-script CHANGE_CUBE, and the phantom teleport -- never
         // by console warps or menu loads, so those don't clobber the autosave.
         if (NumCube != NUM_CUBE_PHANTOM) {
+            const U32 tSave = (U32)g_platform.system.ticks_ms();
             AutoSaveGame();
+            Log_Info("[timing] autosave %u ms (the card write itself runs in the background where it can)",
+                     (unsigned)((U32)g_platform.system.ticks_ms() - tSave));
         }
 
         FlagChgCube = 0;
